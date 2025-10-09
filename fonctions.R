@@ -1,13 +1,12 @@
 #==================================================================================================
 #Author : Noé Méderlet 
-#contact : noe.mederlet@gmail.com
+#contact : noe.mederlet@univ-rouen.fr
 #github : 
 #organism : Master Bims M2, université de rouen 
-#project : 
+#project : Création d'une application interactive dédiée à l’analyse de données transcriptomiques,
+#développée dans le cadre d’un projet universitaire du Master 2 de Bioinformatique de l’Université de Rouen.
+#==================================================================================================#fonction
 
-
-#==================================================================================================
-#fonction
 significativity <- function(data, log2FC_cutoff, P_cutoff){ 
   # Initialisation
   data$Significance <- "Not significant"

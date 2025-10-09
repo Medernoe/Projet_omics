@@ -1,3 +1,12 @@
+#==================================================================================================
+#Author : Noé Méderlet 
+#contact : noe.mederlet@univ-rouen.fr
+#github : 
+#organism : Master Bims M2, université de rouen 
+#project : Création d'une application interactive dédiée à l’analyse de données transcriptomiques,
+#développée dans le cadre d’un projet universitaire du Master 2 de Bioinformatique de l’Université de Rouen.
+#==================================================================================================
+
 source("global.R")
 
 ui <- dashboardPage(
@@ -99,34 +108,49 @@ ui <- dashboardPage(
       
       
       # Onglet DEG
-      tabItem(tabName = "DEG",
-              fluidRow(
-                box(plotOutput("volcano_plot"), width = 8,
-                    downloadButton("downloadVolcano", "Télécharger")),
-                
-                box(
-                  width = 4,
-                  title = 'Titre', 
-                  textInput("Title","Entrer un titre pour la figure :")
-                ),
-                
-                box(
-                  title = "Seuils",
-                  width = 4,
-                  sliderInput("seuil_FC", "Log2 FC :", min = 0, max = 5, value = 1, step = 0.5, width = "100%"),
-                  checkboxInput("v", "Activer ligne verticale (logFC)", value = TRUE),
-                  sliderInput("seuil_pvalue", "P-value :", min = 0, max = 1, value = 0.5, width = "100%"),
-                  checkboxInput("h", "Activer ligne horizontale (p-value)", value = TRUE)
-                )
-              ),
-              fluidRow(
-                box(
-                  title = "Tableau des données",
-                  width = 12,
-                  dataTableOutput("data")
-                )
-              )
+      tabItem(
+        tabName = "DEG",
+        
+        fluidRow(
+          # Colonne gauche : le graphique
+          column(
+            width = 8,
+            box(
+              title = "Volcano Plot",
+              width = 12,
+              plotOutput("volcano_plot", height = "500px"),
+              downloadButton("downloadVolcano", "Télécharger")
+            )
+          ),
+          
+          # Colonne droite : paramètres et titre
+          column(
+            width = 4,
+            box(
+              title = "Titre",
+              width = 12,
+              textInput("Titre", "Entrer un titre pour la figure :")
+            ),
+            box(
+              title = "Seuils",
+              width = 12,
+              sliderInput("seuil_FC", "Log2 FC :", min = 0, max = 5, value = 1, step = 0.5, width = "100%"),
+              checkboxInput("v", "Activer ligne verticale (logFC)", value = TRUE),
+              sliderInput("seuil_pvalue", "P-value :", min = 0, max = 1, value = 0.5, width = "100%"),
+              checkboxInput("h", "Activer ligne horizontale (p-value)", value = TRUE)
+            )
+          )
+        ),
+        
+        fluidRow(
+          box(
+            title = "Tableau des données",
+            width = 12,
+            dataTableOutput("data")
+          )
+        )
       ),
+      
       
       # Onglet Enrichissement
       tabItem(tabName = "Enrichissement",
@@ -139,9 +163,76 @@ ui <- dashboardPage(
       ),
               
       # Onglet Aide
-      tabItem(tabName = "aide",
-              h3("Aide / Documentation")
+      # Onglet A propos
+      tabItem(
+        tabName = "aide",
+        fluidRow(
+          box(
+            title = "À propos du projet",
+            width = 12,
+            # Utilisation de HTML
+            HTML('
+        <div class="panel-group" id="faqAccordion">
+
+          <!-- Question 1 -->
+          <div class="panel panel-default">
+            <div class="panel-heading" style="background-color:#001f3f; color:white; cursor:pointer;" 
+                 data-toggle="collapse" data-parent="#faqAccordion" href="#q1">
+              <h4 class="panel-title">Objectif ?</h4>
+            </div>
+            <div id="q1" class="panel-collapse collapse">
+              <div class="panel-body">
+                Ce projet est proposé dans le cadre d’un enseignement universitaire. 
+                Il a pour vocation l’approfondissement des compétences et de la compréhension 
+                des langages R et RShiny. L’application a pour but de permettre la 
+                génération de graphiques d’annotation fonctionnelle à partir de matrices 
+                en entrée contenant des valeurs de LogFC.
+              </div>
+            </div>
+          </div>
+
+
+          <!-- Question 2 -->
+          <div class="panel panel-default">
+            <div class="panel-heading" style="background-color:#001f3f; color:white; cursor:pointer;" 
+                 data-toggle="collapse" data-parent="#faqAccordion" href="#q2">
+              <h4 class="panel-title">Pourquoi un logo moche ?</h4>
+            </div>
+            <div id="q2" class="panel-collapse collapse">
+              <div class="panel-body">
+                Il est important de noter que je suis bioinformaticien et non graphiste. 
+                De plus le premier avis d’un utilisateur sur la qualité d’un logiciel vient du premier regard. 
+                Avec un logo un peu daté, les utilisateurs penseront peut-être qu’il s’agit 
+                d’une vieille interface mais paradoxalement, cela pourrait aussi leur inspirer 
+                confiance en la robustesse du projet. (C\'était mieux avant !)
+              </div>
+            </div>
+          </div>
+
+
+          <!-- Question 3 -->
+          <div class="panel panel-default">
+            <div class="panel-heading" style="background-color:#001f3f; color:white; cursor:pointer;" 
+                 data-toggle="collapse" data-parent="#faqAccordion" href="#q3">
+              <h4 class="panel-title">À venir ?</h4>
+            </div>
+            <div id="q3" class="panel-collapse collapse">
+              <div class="panel-body">
+                Réécriture des algorithmes d’enrichissement pour proposer des approches 
+                réactives aux jeux de données, amélioration globale de l’interface, 
+                ajout de nouveaux modules dans l’onglet « Enrichissement ». 
+                Un tutoriel et une documentation détaillée seront également ajoutés 
+                pour accompagner les utilisateurs et assurer un suivi du projet.
+              </div>
+            </div>
+          </div>
+
+        </div>
+      ')
+          )
+        )
       )
+      
     )
   )
 )
