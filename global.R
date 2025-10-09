@@ -1,4 +1,5 @@
 library(shiny)
 library(shinydashboard)
 library(ggplot2)
+library(DT)
 source("fonctions.R")
