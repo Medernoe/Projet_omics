@@ -1,16 +1,14 @@
 #==================================================================================================
 #Author : Noé Méderlet 
-#contact : noe.mederlet@gmail.com
+#contact : noe.mederlet@univ-rouen.fr
 #github : 
 #organism : Master Bims M2, université de rouen 
-#project : 
+#project : Création d'une application interactive dédiée à l’analyse de données transcriptomiques,
+#développée dans le cadre d’un projet universitaire du Master 2 de Bioinformatique de l’Université de Rouen.
 
 
 #==================================================================================================
-library(ggplot2)
-library(DT)
-source("fonctions.R")
-
+source("global.R")
 
 # Serveur
 server <- function(input, output) {
@@ -34,7 +32,7 @@ server <- function(input, output) {
                  P_cutoff = input$seuil_pvalue,
                  seuil_v = input$v,
                  seuil_h = input$h,
-                 title = "volcano plot")
+                 title = input$title)
   })
   
   output$data <- renderDataTable({
