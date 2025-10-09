@@ -1,17 +1,19 @@
 #==================================================================================================
 #Author : Noé Méderlet 
 #contact : noe.mederlet@univ-rouen.fr
-#github : 
+#github : https://github.com/Medernoe/Projet_omics
 #organism : Master Bims M2, université de rouen 
 #project : Création d'une application interactive dédiée à l’analyse de données transcriptomiques,
 #développée dans le cadre d’un projet universitaire du Master 2 de Bioinformatique de l’Université de Rouen.
 #==================================================================================================#fonction
 
+#fonction qui selon la pvalue et logFC classe la significativité des gènes 
 significativity <- function(data, log2FC_cutoff, P_cutoff){ 
+  
   # Initialisation
   data$Significance <- "Not significant"
   
-  # Cas où p_value = 0 → tous significatifs
+  # Cas où p_value = 0 => tous significatifs
   if (P_cutoff == 0) {
     data$Significance[data$log2FC > 0] <- "Upregulated"
     data$Significance[data$log2FC < 0] <- "Downregulated"
@@ -34,6 +36,7 @@ significativity <- function(data, log2FC_cutoff, P_cutoff){
 }
 
 
+#fonction qui selon la pvalue et logFC classe la significativité des gènes 
 plot_volcano <- function(data, log2FC_cutoff, P_cutoff,
                          title = "Volcano Plot",
                          seuil_v = FALSE, seuil_h = FALSE) {
