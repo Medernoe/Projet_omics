@@ -36,10 +36,13 @@ significativity <- function(data, log2FC_cutoff, P_cutoff){
 }
 
 
-#fonction qui selon la pvalue et logFC classe la significativité des gènes 
-plot_volcano <- function(data, log2FC_cutoff, P_cutoff,
-                         title = "Volcano Plot",
-                         seuil_v = FALSE, seuil_h = FALSE) {
+plot_volcano <- function(data, 
+                         log2FC_cutoff,
+                         P_cutoff, 
+                         seuil_v, 
+                         seuil_h, 
+                         title = "None", 
+                         highlight_row = NULL) {
   
   # Base du plot
   p <- ggplot(data, aes(x = log2FC, y = -log10(p_value), color = Significance)) +
@@ -59,15 +62,42 @@ plot_volcano <- function(data, log2FC_cutoff, P_cutoff,
   }
   
   # Ligne horizontale (seuil p-value)
-  if (seuil_h & P_cutoff>0) {
+  if (seuil_h & P_cutoff > 0) {
     ythr <- -log10(P_cutoff)
     p <- p + geom_hline(yintercept = ythr, linetype = "dashed")
   }
   
   # Lignes verticales (seuil log2FC)
-  if (seuil_v & log2FC_cutoff>0) {
+  if (seuil_v & log2FC_cutoff > 0) {
     xthr <- c(-log2FC_cutoff, log2FC_cutoff)
     p <- p + geom_vline(xintercept = xthr, linetype = "dashed")
+  }
+  
+  # Vérification du highlight
+  if (!is.null(highlight_row) && 
+      length(highlight_row) > 0 && 
+      !is.na(highlight_row) &&
+      highlight_row > 0 && 
+      highlight_row <= nrow(data)) {  
+    
+
+    # Ajouter un point plus grand avec un contour et son nom pour le gène sélectionné
+    p <- p + 
+      geom_point(data = data[highlight_row, , drop = FALSE],
+                 aes(x = log2FC, y = -log10(p_value)),
+                 color = "orange", 
+                 size = 3, 
+                 shape = 21,
+                 stroke = 1,
+                 fill = "yellow") +
+      # Ajouter une étiquette avec le nom du gène
+      geom_text(data = data[highlight_row, , drop = FALSE],
+                aes(x = log2FC, y = -log10(p_value), label = Gene),
+                vjust = -1.8,
+                hjust = 0.5,
+                size = 2,
+                fontface = "bold",
+                color = "black")
   }
   
   return(p)

@@ -112,7 +112,6 @@ ui <- dashboardPage(
       ),
       
       
-      
       # Onglet DEG
       tabItem(
         tabName = "DEG",
@@ -158,7 +157,7 @@ ui <- dashboardPage(
           box(
             title = "Tableau des données",
             width = 12,
-            dataTableOutput("data")
+            DTOutput("data")  
           )
         )
       ),
