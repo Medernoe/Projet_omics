@@ -124,7 +124,7 @@ ui <- dashboardPage(
             box(
               title = "Volcano Plot",
               width = 12,
-              plotOutput("volcano_plot", height = "500px"),
+              plotlyOutput("volcano_plot", height = "500px"),
               downloadButton("downloadVolcano", "Télécharger")
             )
           ),
@@ -140,13 +140,20 @@ ui <- dashboardPage(
               textInput("Titre", "Entrer un titre pour la figure :")
             ),
             
+            #box d'activation et de désactivation de la barre d'outils
+            box(
+              title = "ToolBox",
+              width = 12,
+              checkboxInput("toolbox", "Activer la barre d'outils", value = TRUE),
+            ),
+            
             #box pour fixer les seuils pvalue et logFC + checkbox pour l'ajout de trait fixé au seuil
             box(
               title = "Seuils",
               width = 12,
               sliderInput("seuil_FC", "Log2 FC :", min = 0, max = 5, value = 1, step = 0.5, width = "100%"),
               checkboxInput("v", "Activer ligne verticale (logFC)", value = TRUE),
-              sliderInput("seuil_pvalue", "P-value :", min = 0, max = 1, value = 0.5, width = "100%"),
+              sliderInput("seuil_pvalue", "P-value :", min = 0, max = 1, value = 0.05, width = "100%"),
               checkboxInput("h", "Activer ligne horizontale (p-value)", value = TRUE)
             )
           )

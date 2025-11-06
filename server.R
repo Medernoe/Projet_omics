@@ -52,9 +52,23 @@ server <- function(input, output) {
   })
   
   #==============================================================================  
-  #sortie volcanoplot
-  output$volcano_plot <- renderPlot({
-    create_volcano()
+  #==============================================================================  
+  # Sortie volcanoplot avec plotly pour interactivité
+  output$volcano_plot <- renderPlotly({
+    p <- create_volcano()
+
+    # Convertir en plotly
+    ggplotly(p, tooltip = c("gene", "x", "y", "colour")) %>%
+      layout(
+        dragmode = "zoom",    # Mode zoom par défaut
+        hovermode = "closest" # Survol du point le plus proche
+      ) %>%
+      config(
+        displayModeBar = input$toolbox,                # Afficher ou non la barre d'outils selon input
+        modeBarButtonsToAdd = list("drawrect", "eraseshape"),  # Ajouter outils de dessin
+        modeBarButtonsToRemove = list("toImage"),      # Retirer le bouton d'export d'image
+        displaylogo = FALSE                            # Masquer le logo Plotly
+      )
   })
   
   #==============================================================================  

@@ -13,10 +13,10 @@ significativity <- function(data, log2FC_cutoff, P_cutoff){
   # Initialisation
   data$Significance <- "Not significant"
   
-  # Cas où p_value = 0 => tous significatifs
-  if (P_cutoff == 0) {
-    data$Significance[data$log2FC > 0] <- "Upregulated"
-    data$Significance[data$log2FC < 0] <- "Downregulated"
+  # Cas où p_value = 1 => significativité ne depend que de log2FC
+  if (P_cutoff == 1) {
+    data$Significance[data$log2FC > log2FC_cutoff] <- "Upregulated"
+    data$Significance[data$log2FC < -log2FC_cutoff] <- "Downregulated"
   } 
   else {
     # Cas classique avec seuil p_value > 0
@@ -95,7 +95,7 @@ plot_volcano <- function(data,
                 aes(x = log2FC, y = -log10(p_value), label = Gene),
                 vjust = -1.8,
                 hjust = 0.5,
-                size = 2,
+                size = 3,
                 fontface = "bold",
                 color = "black")
   }
