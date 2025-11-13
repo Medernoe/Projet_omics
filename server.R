@@ -16,7 +16,7 @@ server <- function(input, output) {
     if (is.null(input$file)) {
       return(NULL)
     }
-    read.csv(input$file$datapath)
+    read.csv(input$file$datapath, sep=";")
   })
   
   #==============================================================================  

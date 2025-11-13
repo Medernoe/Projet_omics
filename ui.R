@@ -3,8 +3,8 @@
 #contact : noe.mederlet@univ-rouen.fr
 #github : https://github.com/Medernoe/Projet_omics
 #organism : Master Bims M2, université de rouen 
-#project : Création d'une application interactive dédiée à l’analyse de données transcriptomiques,
-#développée dans le cadre d’un projet universitaire du Master 2 de Bioinformatique de l’Université de Rouen.
+#project : Création d'une application interactive dédiée à l'analyse de données transcriptomiques,
+#développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
 #==================================================================================================
 source("global.R")
 
@@ -12,8 +12,8 @@ ui <- dashboardPage(
   
   #Entete
   dashboardHeader(title = ""),  # Espace vide car le titre est ecrit en HTML CSS
-
-
+  
+  
   #Sidebar   
   dashboardSidebar(
     
@@ -40,36 +40,9 @@ ui <- dashboardPage(
   
   #Corps
   dashboardBody(
-    # Injecter titre stylisé en HTML
+    # Injecter le fichier CSS externe
     tags$head(
-      tags$style(HTML("
-        /* Masquer le titre de base */
-        .main-header .logo {
-          visibility: hidden;
-        }
-        
-        /* Changer le fond de l'en-tête */
-        .main-header {
-          background-color: #001f3f;  /* bleu foncé */
-          
-        }
-
-        /* Ajouter un nouveau titre personnalisé */
-        .main-header::before {
-          content: 'DƎGO';
-          position: absolute;
-          left: 45px;
-          top: 1px;
-          bottom: 1px;
-          font-family: 'Courier New', monospace;
-          font-size: 55px;
-          font-weight: bold;
-          color: white;
-          display: flex;              
-          align-items: center;
-        }
-      ")
-      )
+      tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
     ),
     
     #Remplie les champs définis dans sidebarMenu()
@@ -88,14 +61,14 @@ ui <- dashboardPage(
             br(), br(),
             
             # Titre principal
-            h2("Bienvenue dans l’application interfacée DEGO !"),
+            h2("Bienvenue dans l'application interfacée DEGO !"),
             br(),
             
             # Texte de présentation
             p(strong("DEGO"), "pour", strong("DEG"), "(Differentially Expressed Genes) et", 
-              strong("EGO"), "(Enrichment Gene Ontology), est une application interactive dédiée à l’analyse de données transcriptomiques."),
-            p("Cette application a été développée dans le cadre d’un projet universitaire du",
-              strong("Master 2 de Bioinformatique de l’Université de Rouen"), "."),
+              strong("EGO"), "(Enrichment Gene Ontology), est une application interactive dédiée à l'analyse de données transcriptomiques."),
+            p("Cette application a été développée dans le cadre d'un projet universitaire du",
+              strong("Master 2 de Bioinformatique de l'Université de Rouen"), "."),
             br(),
             
             # Informations sur le créateur
@@ -105,7 +78,7 @@ ui <- dashboardPage(
             br(),
             
             # Sections d'information
-            p("Pour plus d’informations sur l’utilisation de l’application, consultez la section ", strong("« Tuto »"), "."),
+            p("Pour plus d'informations sur l'utilisation de l'application, consultez la section ", strong("« Tuto »"), "."),
             p("Pour en savoir davantage sur le projet, rendez-vous dans la section ", strong("« À propos »"), ".")
           )
         )
@@ -151,6 +124,7 @@ ui <- dashboardPage(
             box(
               title = "Seuils",
               width = 12,
+              #modifier ici max = 5 par max(log2FC)
               sliderInput("seuil_FC", "Log2 FC :", min = 0, max = 5, value = 1, step = 0.5, width = "100%"),
               checkboxInput("v", "Activer ligne verticale (logFC)", value = TRUE),
               sliderInput("seuil_pvalue", "P-value :", min = 0, max = 1, value = 0.05, width = "100%"),
@@ -180,7 +154,7 @@ ui <- dashboardPage(
       tabItem(tabName = "Tuto",
               h2("Coming soon")
       ),
-              
+      
       # Onglet A propos
       tabItem(
         tabName = "more",
@@ -188,69 +162,11 @@ ui <- dashboardPage(
           box(
             title = "À propos du projet",
             width = 12,
-            # Utilisation de HTML
-            HTML('
-            <div class="panel-group" id="faqAccordion">
-    
-              <!-- Question 1 -->
-              <div class="panel panel-default">
-                <div class="panel-heading" style="background-color:#001f3f; color:white; cursor:pointer;" 
-                      data-toggle="collapse" data-parent="#faqAccordion" href="#q1">
-                  <h4 class="panel-title">Objectif ?</h4>
-                </div>
-                <div id="q1" class="panel-collapse collapse">
-                  <div class="panel-body">
-                    Ce projet est proposé dans le cadre d’un enseignement universitaire. 
-                    Il a pour vocation l’approfondissement des compétences et de la compréhension 
-                    des langages R et RShiny. L’application a pour but de permettre la 
-                    génération de graphiques d’annotation fonctionnelle à partir de matrices 
-                    en entrée contenant des valeurs de LogFC.
-                  </div>
-                </div>
-              </div>
-    
-    
-              <!-- Question 2 -->
-              <div class="panel panel-default">
-                <div class="panel-heading" style="background-color:#001f3f; color:white; cursor:pointer;" 
-                      data-toggle="collapse" data-parent="#faqAccordion" href="#q2">
-                  <h4 class="panel-title">Pourquoi un logo moche ?</h4>
-                </div>
-                <div id="q2" class="panel-collapse collapse">
-                  <div class="panel-body">
-                    Il est important de noter que je suis bioinformaticien et non graphiste. 
-                    De plus le premier avis d’un utilisateur sur la qualité d’un logiciel vient du premier regard. 
-                    Avec un logo un peu daté, les utilisateurs penseront peut-être qu’il s’agit 
-                    d’une vieille interface mais paradoxalement, cela pourrait aussi leur inspirer 
-                    confiance en la robustesse du projet. (C\'était mieux avant !)
-                  </div>
-                </div>
-              </div>
-    
-    
-              <!-- Question 3 -->
-              <div class="panel panel-default">
-                <div class="panel-heading" style="background-color:#001f3f; color:white; cursor:pointer;" 
-                      data-toggle="collapse" data-parent="#faqAccordion" href="#q3">
-                  <h4 class="panel-title">À venir ?</h4>
-                </div>
-                <div id="q3" class="panel-collapse collapse">
-                  <div class="panel-body">
-                    Réécriture des algorithmes d’enrichissement pour proposer des approches 
-                    réactives aux jeux de données, amélioration globale de l’interface, 
-                    ajout de nouveaux modules dans l’onglet « Enrichissement ». 
-                    Un tutoriel et une documentation détaillée seront également ajoutés 
-                    pour accompagner les utilisateurs et assurer un suivi du projet.
-                  </div>
-                </div>
-              </div>
-              
-            </div>
-          ')
+            # Charger le contenu HTML externe
+            includeHTML("www/about.html")
           )
         )
       ) 
     )
   )
 )
-

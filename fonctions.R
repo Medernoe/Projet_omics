@@ -13,15 +13,15 @@ significativity <- function(data, log2FC_cutoff, P_cutoff){
   # Initialisation
   data$Significance <- "Not significant"
   
-  # Cas où p_value = 1 => significativité ne depend que de log2FC
+  # Cas où pval = 1 => significativité ne depend que de log2FC
   if (P_cutoff == 1) {
     data$Significance[data$log2FC > log2FC_cutoff] <- "Upregulated"
     data$Significance[data$log2FC < -log2FC_cutoff] <- "Downregulated"
   } 
   else {
-    # Cas classique avec seuil p_value > 0
-    data$Significance[data$p_value < P_cutoff & data$log2FC >= log2FC_cutoff] <- "Upregulated"
-    data$Significance[data$p_value < P_cutoff & data$log2FC <= -log2FC_cutoff] <- "Downregulated"
+    # Cas classique avec seuil pval > 0
+    data$Significance[data$pval < P_cutoff & data$log2FC >= log2FC_cutoff] <- "Upregulated"
+    data$Significance[data$pval < P_cutoff & data$log2FC <= -log2FC_cutoff] <- "Downregulated"
   }
   
   # Définition des niveaux du facteur selon les catégories présentes
@@ -45,7 +45,7 @@ plot_volcano <- function(data,
                          highlight_row = NULL) {
   
   # Base du plot
-  p <- ggplot(data, aes(x = log2FC, y = -log10(p_value), color = Significance)) +
+  p <- ggplot(data, aes(x = log2FC, y = -log10(pval), color = Significance)) +
     geom_point(alpha = 0.5, size = 1) +
     labs(title = title,
          x = "Log2 Fold Change",
@@ -83,16 +83,16 @@ plot_volcano <- function(data,
 
     # Ajouter un point plus grand avec un contour et son nom pour le gène sélectionné
     p <- p + geom_point(data = data[highlight_row, , drop = FALSE],
-                        aes(x = log2FC, y = -log10(p_value)),
-                        color = "purple", 
+                        aes(x = log2FC, y = -log10(pval)),
+                        color = "pink", 
                         size = 3, 
                         shape = 16) +
               # Ajouter une étiquette avec le nom du gène
               geom_text(data = data[highlight_row, , drop = FALSE],
-                        aes(x = log2FC, y = -log10(p_value), label = Gene),
+                        aes(x = log2FC, y = -log10(pval), label = GeneName),
                         vjust = -1.8,
                         hjust = 0.5,
-                        size = 3,
+                        size = 5,
                         fontface = "bold",
                         color = "black")
   }
