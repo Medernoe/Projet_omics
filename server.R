@@ -3,21 +3,28 @@
 #contact : noe.mederlet@univ-rouen.fr
 #github : https://github.com/Medernoe/Projet_omics
 #organism : Master Bims M2, université de rouen 
-#project : Création d'une application interactive dédiée à l’analyse de données transcriptomiques,
-#développée dans le cadre d’un projet universitaire du Master 2 de Bioinformatique de l’Université de Rouen.
+#project : Création d'une application interactive dédiée à l'analyse de données transcriptomiques,
+#développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
 #==================================================================================================
 source("global.R")
 
 # Serveur
 server <- function(input, output) {
   #==============================================================================    
-  #dataframe des pvalue et logFC
-  data <- reactive({read.csv(input$file$datapath)})
+  # Dataframe des pvalue et logFC
+  data <- reactive({
+    if (is.null(input$file)) {
+      return(NULL)
+    }
+    read.csv(input$file$datapath)
+  })
   
   #==============================================================================  
   # Données traitées 
   processed_data <- reactive({
-    req(data())
+    if (is.null(data())) {
+      return(NULL)
+    }
     df <- data()
     significativity(df, 
                     log2FC_cutoff = input$seuil_FC,
@@ -27,19 +34,12 @@ server <- function(input, output) {
   #==============================================================================  
   # Fonction réactive qui crée le plot
   create_volcano <- reactive({
-    # assure que les données existent
-    req(processed_data())  
+    req(processed_data()) 
     
     df <- processed_data()
-    # Récupère la ligne sélectionnée
     selected_row <- input$data_rows_selected 
     
-    # DEBUG : Afficher dans la console R
-    cat("Selected row:", selected_row, "\n")
-    cat("Length:", length(selected_row), "\n")
-    cat("Is NULL:", is.null(selected_row), "\n")
-    
-    #utilise la fonction custom : plot_volcano
+    # Utilise la fonction custom : plot_volcano
     plot_v <- plot_volcano(df,
                            log2FC_cutoff = input$seuil_FC,
                            P_cutoff = input$seuil_pvalue,
@@ -52,49 +52,56 @@ server <- function(input, output) {
   })
   
   #==============================================================================  
-  #==============================================================================  
   # Sortie volcanoplot avec plotly pour interactivité
   output$volcano_plot <- renderPlotly({
+    # Vérifier si le fichier est chargé
+    validate(
+      need(!is.null(input$file), 
+           "Veuillez charger un fichier CSV au format attendu pour visualiser son Volcano Plot")
+    )
+    
     p <- create_volcano()
-
-    # Convertir en plotly
-    ggplotly(p, tooltip = c("gene", "x", "y", "colour")) %>%
+    
+    # Convertir le plot en plotly
+    ggplotly(p, tooltip = c("x", "y", "colour")) %>%
       layout(
-        dragmode = "zoom",    # Mode zoom par défaut
-        hovermode = "closest" # Survol du point le plus proche
+        dragmode = "zoom",
+        hovermode = "closest"
       ) %>%
       config(
-        displayModeBar = input$toolbox,                # Afficher ou non la barre d'outils selon input
-        modeBarButtonsToAdd = list("drawrect", "eraseshape"),  # Ajouter outils de dessin
-        modeBarButtonsToRemove = list("toImage"),      # Retirer le bouton d'export d'image
-        displaylogo = FALSE                            # Masquer le logo Plotly
+        displayModeBar = input$toolbox, #permet de selectionner ou pas la toolbox
+        modeBarButtonsToAdd = list("drawrect", "eraseshape"),
+        modeBarButtonsToRemove = list("toImage"),
+        displaylogo = FALSE
       )
   })
   
   #==============================================================================  
-  #Téléchargement du volcano plot
+  # Téléchargement du volcano plot
   output$downloadVolcano <- downloadHandler(
     filename = function() {
-      #creer le nom 
       paste("Volcano_plot_", Sys.Date(), ".png", sep = "")
     },
     content = function(file) {
-      # Utiliser la fonction réactive pour recreer le plot 
       ggsave(file, plot = create_volcano(), width = 12, height = 8, dpi = 300)
     }
   )
   
   #==============================================================================  
-  #sortie tableau
+  # Sortie tableau
   output$data <- renderDT({
-    req(processed_data())
+    # Vérifier si le fichier est chargé
+    validate(
+      need(!is.null(input$file), 
+           "Veuillez charger un fichier CSV au format attendu pour afficher le tableau des données")
+    )
     
     df <- processed_data()
     
-    #affiche la table avec sélection activée
+    # Affiche la table avec sélection activée
     datatable(
       df,
-      selection = 'single',  # Permet de sélectionner UNE seule ligne, à modifier pour prendre plusieur lignes
+      selection = 'single',
       options = list(
         pageLength = 10,
         scrollX = TRUE

@@ -62,13 +62,13 @@ plot_volcano <- function(data,
   }
   
   # Ligne horizontale (seuil p-value)
-  if (seuil_h & P_cutoff > 0) {
+  if (seuil_h && P_cutoff > 0 && P_cutoff < 1) {
     ythr <- -log10(P_cutoff)
     p <- p + geom_hline(yintercept = ythr, linetype = "dashed")
   }
   
   # Lignes verticales (seuil log2FC)
-  if (seuil_v & log2FC_cutoff > 0) {
+  if (seuil_v && log2FC_cutoff > 0 && log2FC_cutoff < max(data$log2FC)) {
     xthr <- c(-log2FC_cutoff, log2FC_cutoff)
     p <- p + geom_vline(xintercept = xthr, linetype = "dashed")
   }
@@ -82,22 +82,19 @@ plot_volcano <- function(data,
     
 
     # Ajouter un point plus grand avec un contour et son nom pour le gène sélectionné
-    p <- p + 
-      geom_point(data = data[highlight_row, , drop = FALSE],
-                 aes(x = log2FC, y = -log10(p_value)),
-                 color = "orange", 
-                 size = 3, 
-                 shape = 21,
-                 stroke = 1,
-                 fill = "yellow") +
-      # Ajouter une étiquette avec le nom du gène
-      geom_text(data = data[highlight_row, , drop = FALSE],
-                aes(x = log2FC, y = -log10(p_value), label = Gene),
-                vjust = -1.8,
-                hjust = 0.5,
-                size = 3,
-                fontface = "bold",
-                color = "black")
+    p <- p + geom_point(data = data[highlight_row, , drop = FALSE],
+                        aes(x = log2FC, y = -log10(p_value)),
+                        color = "purple", 
+                        size = 3, 
+                        shape = 16) +
+              # Ajouter une étiquette avec le nom du gène
+              geom_text(data = data[highlight_row, , drop = FALSE],
+                        aes(x = log2FC, y = -log10(p_value), label = Gene),
+                        vjust = -1.8,
+                        hjust = 0.5,
+                        size = 3,
+                        fontface = "bold",
+                        color = "black")
   }
   
   return(p)
