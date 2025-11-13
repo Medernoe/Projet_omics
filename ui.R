@@ -8,19 +8,23 @@
 #==================================================================================================
 source("global.R")
 
-ui <- dashboardPage(
+#==================================================================================================
+# INTERFACE UTILISATEUR
+
+dashboardPage(
+  #================================================================================================
+  # Header
+  dashboardHeader(title = ""),  # Espace vide car le titre est écrit en CSS
   
-  #Entete
-  dashboardHeader(title = ""),  # Espace vide car le titre est ecrit en HTML CSS
   
-  
-  #Sidebar   
+  #================================================================================================
+  # Sidebar
   dashboardSidebar(
     
-    #boite de selection du fichier d'entrée
+    #-----Input fichier-----
     fileInput("file", "Choisir fichier DEG :"),
     
-    #boite de selection de l'organisme
+    #-----Sélection organisme-----
     selectInput(
       inputId = "species",
       label = "Choisir une espèce :",
@@ -28,7 +32,7 @@ ui <- dashboardPage(
       selected = "Homo sapiens"
     ),
     
-    #Sous menu avec logo
+    #-----Menu-----
     sidebarMenu(
       menuItem("Home", tabName = "Home", icon = icon("house")),
       menuItem("DEG", tabName = "DEG", icon = icon("magnifying-glass-chart")),
@@ -38,17 +42,19 @@ ui <- dashboardPage(
     )
   ),
   
-  #Corps
+  #================================================================================================
+  # body 
   dashboardBody(
-    # Injecter le fichier CSS externe
+    
+    #-----CSS externe-----
     tags$head(
       tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
     ),
     
-    #Remplie les champs définis dans sidebarMenu()
+    #-----Contenu des onglets-----
     tabItems(
-      
-      # Onglet Home 
+      #==============================================================================================
+      # ONGLET : HOME
       tabItem(
         tabName = "Home",
         fluidRow(
@@ -56,28 +62,27 @@ ui <- dashboardPage(
             width = 12,
             align = "center",
             
-            # Logo
+            #-----Logo-----
             tags$img(src = "logo.png", height = "250px"),
             br(), br(),
             
-            # Titre principal
+            #-----Titre principal-----
             h2("Bienvenue dans l'application interfacée DEGO !"),
             br(),
             
-            # Texte de présentation
+            #-----Présentation-----
             p(strong("DEGO"), "pour", strong("DEG"), "(Differentially Expressed Genes) et", 
               strong("EGO"), "(Enrichment Gene Ontology), est une application interactive dédiée à l'analyse de données transcriptomiques."),
             p("Cette application a été développée dans le cadre d'un projet universitaire du",
               strong("Master 2 de Bioinformatique de l'Université de Rouen"), "."),
             br(),
             
-            # Informations sur le créateur
+            #-----Informations-----
             p(strong("Réalisée par :"), "Noé Mederlet"),
             p(strong("GitHub :"), tags$a(href = "https://github.com/Medernoe/Projet_omics", "Lien vers le dépôt", target = "_blank")),
             p(strong("Contact :"), tags$a(href = "noe.mederlet@univ-rouen.fr", "noe.mederlet@univ-rouen.fr")),
             br(),
             
-            # Sections d'information
             p("Pour plus d'informations sur l'utilisation de l'application, consultez la section ", strong("« Tuto »"), "."),
             p("Pour en savoir davantage sur le projet, rendez-vous dans la section ", strong("« À propos »"), ".")
           )
@@ -85,77 +90,118 @@ ui <- dashboardPage(
       ),
       
       
-      # Onglet DEG
+      #==============================================================================================
+      # ONGLET : DEG
       tabItem(
         tabName = "DEG",
         
-        #Premiere ligne de la page 
+        #--------------------------------------------------------------------------------------------
+        # Volcano Plot + Paramètres seuils 
         fluidRow(
-          # Colonne gauche : le graphique
+          
+          #-----Colonne gauche : Volcano Plot-----
           column(
             width = 8,
             box(
               title = "Volcano Plot",
               width = 12,
-              plotlyOutput("volcano_plot", height = "500px"),
+              
+              # Image d'erreur conditionnelle (affichée si pas de fichier)
+              conditionalPanel(
+                condition = "output.show_volcano_error",
+                div(
+                  style = "text-align: center; padding: 20px;",
+                  p("Veuillez charger un fichier CSV au format attendu pour visualiser son Volcano Plot",
+                    style = "font-size: 16px; color: #666; margin-bottom: 20px;"),
+                  imageOutput("volcano_error_img", height = "450px", inline = TRUE)
+                )
+              ),
+              
+              # Plot conditionnel (affiché si fichier chargé)
+              conditionalPanel(
+                condition = "!output.show_volcano_error",
+                plotlyOutput("volcano_plot", height = "500px")
+              ),
+              
+              # Bouton de téléchargement
               downloadButton("downloadVolcano", "Télécharger")
             )
           ),
           
-          # Colonne droite : paramètres et titre
+          #-----Colonne droite : Paramètres seuils-----
           column(
             width = 4,
             
-            #Box demandant un titre pour la figure Volcano plot 
+            # Box : Titre du graphique
             box(
               title = "Titre",
               width = 12,
               textInput("Titre", "Entrer un titre pour la figure :")
             ),
             
-            #box d'activation et de désactivation de la barre d'outils
+            # Box : Activation ToolBox
             box(
               title = "ToolBox",
               width = 12,
-              checkboxInput("toolbox", "Activer la barre d'outils", value = TRUE),
+              checkboxInput("toolbox", "Activer la barre d'outils", value = TRUE)
             ),
             
-            #box pour fixer les seuils pvalue et logFC + checkbox pour l'ajout de trait fixé au seuil
+            # Box : Seuils de significativité
             box(
               title = "Seuils",
               width = 12,
-              #modifier ici max = 5 par max(log2FC)
+              # Seuil Log2 Fold Change
               sliderInput("seuil_FC", "Log2 FC :", min = 0, max = 5, value = 1, step = 0.5, width = "100%"),
               checkboxInput("v", "Activer ligne verticale (logFC)", value = TRUE),
+              # Seuil P-value
               sliderInput("seuil_pvalue", "P-value :", min = 0, max = 1, value = 0.05, width = "100%"),
               checkboxInput("h", "Activer ligne horizontale (p-value)", value = TRUE)
             )
           )
         ),
         
-        #Seconde ligne sur la page 
+        #--------------------------------------------------------------------------------------------
+        # Tableau des données
         fluidRow(
           box(
             title = "Tableau des données",
             width = 12,
-            DTOutput("data")  
+            
+            # Texte d'erreur conditionnel (affiché si pas de fichier)
+            conditionalPanel(
+              condition = "output.show_data_error",
+              div(
+                style = "text-align: center; padding: 50px;",
+                h3(textOutput("data_error_text"), style = "color: #666;")
+              )
+            ),
+            
+            # Tableau conditionnel (affiché si fichier chargé)
+            conditionalPanel(
+              condition = "!output.show_data_error",
+              DTOutput("data")
+            )
           )
         )
       ),
       
       
-      # Onglet Enrichissement
-      tabItem(tabName = "Enrichissement",
-              h2("Coming soon")
+      #==============================================================================================
+      # ONGLET : ENRICHISSEMENT (vide)
+      tabItem(
+        tabName = "Enrichissement",
+        h2("Coming soon")
       ),
       
-      
-      # Onglet Tuto
-      tabItem(tabName = "Tuto",
-              h2("Coming soon")
+      #==============================================================================================
+      # ONGLET : TUTO (vide)
+      tabItem(
+        tabName = "Tuto",
+        h2("Coming soon")
       ),
       
-      # Onglet A propos
+      #==============================================================================================
+      # ONGLET : À PROPOS
       tabItem(
         tabName = "more",
         fluidRow(
@@ -166,7 +212,7 @@ ui <- dashboardPage(
             includeHTML("www/about.html")
           )
         )
-      ) 
+      )
     )
   )
 )

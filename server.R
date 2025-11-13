@@ -9,9 +9,12 @@
 source("global.R")
 
 # Serveur
-server <- function(input, output) {
-  #==============================================================================    
-  # Dataframe des pvalue et logFC
+function(input, output, session) {
+  
+  #==================================================================================================
+  # CHARGEMENT ET TRAITEMENT DES DONNÉES
+  
+  # Lecture du fichier CSV uploadé par l'utilisateur
   data <- reactive({
     if (is.null(input$file)) {
       return(NULL)
@@ -19,65 +22,90 @@ server <- function(input, output) {
     read.csv(input$file$datapath, sep=";")
   })
   
-  #==============================================================================  
-  # Données traitées 
+  # Debounce des seuils pour éviter les recalculs trop fréquents
+  # Le debounce retarde l'exécution de 300ms après le dernier changement du slider
+  # Cela évite de recalculer à chaque mouvement du slider
+  seuil_FC_debounced <- debounce(reactive(input$seuil_FC), 300)
+  seuil_pvalue_debounced <- debounce(reactive(input$seuil_pvalue), 300)
+  
+  # Traitement des données : ajout de la colonne Significance
+  # Cette fonction réactive applique les seuils pour classifier les gènes
   processed_data <- reactive({
     if (is.null(data())) {
       return(NULL)
     }
     df <- data()
+    # Fonction custom : détermine la significativité (Upregulated/Downregulated/Not significant)
     significativity(df, 
-                    log2FC_cutoff = input$seuil_FC,
-                    P_cutoff = input$seuil_pvalue)
+                    log2FC_cutoff = seuil_FC_debounced(),
+                    P_cutoff = seuil_pvalue_debounced())
   })
   
-  #==============================================================================  
-  # Fonction réactive qui crée le plot
+  #==================================================================================================
+  # VOLCANO PLOT
+
+  # Création du volcano plot avec ggplot2
   create_volcano <- reactive({
-    req(processed_data()) 
+    req(processed_data())  # S'assure que les données existent avant de créer le plot
     
     df <- processed_data()
-    selected_row <- input$data_rows_selected 
+    selected_row <- input$data_rows_selected  # Récupère la ligne sélectionnée dans le tableau
     
-    # Utilise la fonction custom : plot_volcano
+    # Fonction custom : génère le volcano plot avec highlight optionnel
     plot_v <- plot_volcano(df,
-                           log2FC_cutoff = input$seuil_FC,
-                           P_cutoff = input$seuil_pvalue,
-                           seuil_v = input$v,
-                           seuil_h = input$h,
+                           log2FC_cutoff = seuil_FC_debounced(),
+                           P_cutoff = seuil_pvalue_debounced(),
+                           seuil_v = input$v,      # Affiche/masque lignes verticales
+                           seuil_h = input$h,      # Affiche/masque ligne horizontale
                            title = input$Titre,
-                           highlight_row = selected_row)  
+                           highlight_row = selected_row)
     
     return(plot_v)
   })
   
-  #==============================================================================  
-  # Sortie volcanoplot avec plotly pour interactivité
-  output$volcano_plot <- renderPlotly({
-    # Vérifier si le fichier est chargé
-    validate(
-      need(!is.null(input$file), 
-           "Veuillez charger un fichier CSV au format attendu pour visualiser son Volcano Plot")
+  # Condition pour afficher l'image d'erreur (pas de fichier chargé)
+  # Cette fonction reactive retourne TRUE si aucun fichier n'est chargé
+  output$show_volcano_error <- reactive({
+    is.null(input$file)
+  })
+  outputOptions(output, "show_volcano_error", suspendWhenHidden = FALSE)
+  
+  # Image d'erreur pour le volcano plot
+  output$volcano_error_img <- renderImage({
+    list(
+      src = "www/erreur_format.jpg",  
+      contentType = "image/jpeg",      
+      width = "70%",                   
+      height = "auto",                 
+      alt = "Format de fichier attendu"
     )
+  }, deleteFile = FALSE)  
+  
+  # Rendu du volcano plot interactif avec Plotly
+  output$volcano_plot <- renderPlotly({
+    req(input$file)  
     
+    # Fonction custom de création du vplot 
     p <- create_volcano()
     
-    # Convertir le plot en plotly
+    # Conversion du ggplot en plotly 
     ggplotly(p, tooltip = c("x", "y", "colour")) %>%
       layout(
-        dragmode = "zoom",
-        hovermode = "closest"
+        dragmode = "zoom",      
+        hovermode = "closest"   
       ) %>%
       config(
-        displayModeBar = input$toolbox, #permet de selectionner ou pas la toolbox
+        # Affiche/masque la barre d'outils selon l'input
+        displayModeBar = input$toolbox,  
         modeBarButtonsToAdd = list("drawrect", "eraseshape"),
         modeBarButtonsToRemove = list("toImage"),
         displaylogo = FALSE
-      )
+      ) %>%
+      # WebGL boost les performances 
+      plotly::toWebGL() 
   })
   
-  #==============================================================================  
-  # Téléchargement du volcano plot
+  # Téléchargement du volcano plot en PNG
   output$downloadVolcano <- downloadHandler(
     filename = function() {
       paste("Volcano_plot_", Sys.Date(), ".png", sep = "")
@@ -87,24 +115,35 @@ server <- function(input, output) {
     }
   )
   
-  #==============================================================================  
-  # Sortie tableau
+  #==================================================================================================
+  # TABLEAU DES DONNÉES
+
+  # Condition pour afficher le message d'erreur (pas de fichier chargé)
+  output$show_data_error <- reactive({
+    is.null(input$file)
+  })
+  outputOptions(output, "show_data_error", suspendWhenHidden = FALSE)
+  
+  # Texte d'erreur pour le tableau
+  output$data_error_text <- renderText({
+    "Veuillez charger un fichier CSV au format attendu pour explorer les données"
+  })
+  
+  # Rendu du tableau interactif avec DataTables
   output$data <- renderDT({
-    # Vérifier si le fichier est chargé
-    validate(
-      need(!is.null(input$file), 
-           "Veuillez charger un fichier CSV au format attendu pour afficher le tableau des données")
-    )
+    req(input$file)
     
     df <- processed_data()
     
-    # Affiche la table avec sélection activée
+    # Affiche le tableau avec options d'optimisation
     datatable(
       df,
-      selection = 'single',
+      selection = 'single',  
       options = list(
-        pageLength = 10,
-        scrollX = TRUE
+        pageLength = 10,      
+        scrollX = TRUE,       
+        deferRender = TRUE,   
+        scroller = TRUE   
       )
     )
   })
