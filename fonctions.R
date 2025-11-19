@@ -10,7 +10,6 @@
 # Classe la significativité des gènes selon la pvalue et logFC
 significativity <- function(data, log2FC_cutoff, P_cutoff){ 
   
-  # Initialisation vectorisée
   data$Significance <- "Not significant"
   
   # Cas où pval = 1 => significativité ne depend que de log2FC
@@ -54,7 +53,8 @@ plot_volcano <- function(data,
                          highlight_row = NULL) {
   
   # Base du plot 
-  p <- ggplot(data, aes(x = log2FC, y = -log10(pval), color = Significance, 
+  p <- ggplot(data, aes(x = log2FC, y = -log10(pval), 
+                        color = Significance, 
                         text = paste("Gene:", GeneName))) +  
     geom_point(alpha = 0.4, size = 0.8) +  
     labs(title = title,
@@ -96,11 +96,9 @@ plot_volcano <- function(data,
       # Ajouter un point plus grand pour le gène sélectionné
       p <- p + geom_point(data = data[highlight_row, , drop = FALSE],
                           aes(x = log2FC, y = -log10(pval)),
-                          color = "black", 
+                          color = "purple", 
                           size = 2, 
-                          shape = 21,
-                          fill = "purple",
-                          stroke = 0.2) +
+                          shape = 16) +
         # Ajouter une étiquette avec le nom du gène
         geom_text(data = data[highlight_row, , drop = FALSE],
                   aes(x = log2FC, y = -log10(pval), label = GeneName),

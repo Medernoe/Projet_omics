@@ -7,6 +7,7 @@
 #développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
 #==================================================================================================
 source("global.R")
+useShinyalert()
 
 #==================================================================================================
 # INTERFACE UTILISATEUR

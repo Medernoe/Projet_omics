@@ -12,23 +12,62 @@ source("global.R")
 function(input, output, session) {
   
   #==================================================================================================
-  # CHARGEMENT ET TRAITEMENT DES DONNÉES
+  # CHARGEMENT DES DONNÉES
   
   # Lecture du fichier CSV uploadé par l'utilisateur
+  required_columns <- c("GeneName", "log2FC", "pval")
+  
   data <- reactive({
-    if (is.null(input$file)) {
+    req(input$file)
+    
+    # Vérification de l’extension du fichier
+    ext <- tools::file_ext(input$file$name)
+    if (tolower(ext) != "csv") {
+      shinyalert(
+        title = "Format non valide",
+        text = "Veuillez importer un fichier .csv uniquement.",
+        type = "error"
+      )
       return(NULL)
     }
-    read.csv(input$file$datapath, sep=";")
+    
+    # Lecture sécurisée du CSV
+    df <- tryCatch(
+      {
+        read.csv(input$file$datapath, sep = ";")
+      },
+      error = function(e) {
+        shinyalert(
+          title = "Erreur de lecture",
+          text = "Impossible de lire le fichier. Vérifiez qu'il s'agit d’un CSV valide.",
+          type = "error"
+        )
+        return(NULL)
+      }
+    )
+    
+    if (is.null(df)) return(NULL)
+    
+    # Vérification des colonnes obligatoires
+    if (!all(required_columns %in% colnames(df))) {
+      shinyalert(
+        title = "Colonnes manquantes",
+        text = paste0(
+          "Le fichier doit contenir les colonnes suivantes : ",
+          paste(required_columns, collapse = ", ")
+        ),
+        type = "error"
+      )
+      return(NULL)
+    }
+    
+    df
   })
   
-  # Debounce des seuils pour éviter les recalculs trop fréquents
-  # Le debounce retarde l'exécution de 300ms après le dernier changement du slider
-  # Cela évite de recalculer à chaque mouvement du slider
+  # Fixe un seuil de latence avant la modification via les sliders (optimisation)
   seuil_FC_debounced <- debounce(reactive(input$seuil_FC), 300)
   seuil_pvalue_debounced <- debounce(reactive(input$seuil_pvalue), 300)
   
-  # Traitement des données : ajout de la colonne Significance
   # Cette fonction réactive applique les seuils pour classifier les gènes
   processed_data <- reactive({
     if (is.null(data())) {
@@ -44,7 +83,7 @@ function(input, output, session) {
   #==================================================================================================
   # VOLCANO PLOT
 
-  # Création du volcano plot avec ggplot2
+  # Création du volcano plot avec ggplot
   create_volcano <- reactive({
     req(processed_data())  # S'assure que les données existent avant de créer le plot
     
@@ -64,9 +103,9 @@ function(input, output, session) {
   })
   
   # Condition pour afficher l'image d'erreur (pas de fichier chargé)
-  # Cette fonction reactive retourne TRUE si aucun fichier n'est chargé
+  # Cette fonction reactive retourne TRUE si aucun fichier n'est chargé ou si data n'a pas le bon format  
   output$show_volcano_error <- reactive({
-    is.null(input$file)
+    is.null(input$file) || is.null(data())
   })
   outputOptions(output, "show_volcano_error", suspendWhenHidden = FALSE)
   
@@ -120,7 +159,7 @@ function(input, output, session) {
 
   # Condition pour afficher le message d'erreur (pas de fichier chargé)
   output$show_data_error <- reactive({
-    is.null(input$file)
+    is.null(input$file) || is.null(data())
   })
   outputOptions(output, "show_data_error", suspendWhenHidden = FALSE)
   
@@ -135,7 +174,7 @@ function(input, output, session) {
     
     df <- processed_data()
     
-    # Affiche le tableau avec options d'optimisation
+    # Affiche le tableau
     datatable(
       df,
       selection = 'single',  
