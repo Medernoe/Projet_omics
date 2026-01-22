@@ -185,41 +185,37 @@ dashboardPage(
         )
       ),
       
-      
       #==============================================================================================
-      # ONGLET : ENRICHISSEMENT (vide)
+      # ONGLET : ENRICHISSEMENT
       tabItem(
         tabName = "Enrichissement",
         
         #--------------------------------------------------------------------------------------------
-        # enrichissement 
+        # Enrichissement Plot + Paramètres
         fluidRow(
           
-          #-----Colonne gauche : Volcano Plot-----
+          #-----Colonne gauche : Enrichissement Plot-----
           column(
             width = 8,
             box(
               title = "Enrichissement Plot",
               width = 12,
               
-# modifier ca pour mettre une erreur d'enrichissement 
-# ajouter une erreur qui dit une erreur lié au faite qu'il n'y ai pas de données
-              # Image d'erreur conditionnelle (affichée si pas de fichier) 
+              # Image d'erreur conditionnelle (affichée si pas de fichier)
               conditionalPanel(
-                condition = "output.show_volcano_error",
+                condition = "output.show_enrichment_error",
                 div(
                   style = "text-align: center; padding: 20px;",
-                  p("Veuillez charger un fichier CSV au format attendu pour visualiser son Volcano Plot",
+                  p("Veuillez charger un fichier CSV au format attendu pour visualiser l'analyse d'enrichissement",
                     style = "font-size: 16px; color: #666; margin-bottom: 20px;"),
-                  imageOutput("volcano_error_img_ora", height = "450px", inline = TRUE)
+                  imageOutput("enrichment_error_img", height = "450px", inline = TRUE)
                 )
               ),
               
               # Plot conditionnel (affiché si fichier chargé)
               conditionalPanel(
-                condition = "!output.show_volcano_error",
-                plotlyOutput("volcano_plot_ora", 
-                             height = "500px")
+                condition = "!output.show_enrichment_error",
+                plotlyOutput("enrichment_plot", height = "500px")
               ),
               
               # Bouton de téléchargement
@@ -227,7 +223,7 @@ dashboardPage(
             )
           ),
           
-          #-----Colonne droite : Paramètres seuils-----
+          #-----Colonne droite : Paramètres-----
           column(
             width = 4,
             
@@ -245,34 +241,42 @@ dashboardPage(
               checkboxInput("toolbox_ORA", "Activer la barre d'outils", value = TRUE)
             ),
             
-            
-            # Box : Nombre de GO affiché 
+            # Box : Nombre de GO affichés
             box(
-              title = "top_n",
+              title = "Nombre de termes GO",
               width = 12,
-              # nombre de go terms utilise peut etre changé le format et le max 
-              sliderInput("top n Go", "choice top n Go :", min = 1, max = 100, value = 10, step = 1, width = "100%"),
+              sliderInput("top_n_Go", "Nombre de termes GO à afficher :", 
+                          min = 5, max = 50, value = 10, step = 5, width = "100%")
             ),
             
-            #-----Sélection GO-----
-            selectInput(
-              inputId = "GO",
-              label = "Choisir le GO terms :",
-              choices = c("BP", "CC", "MF"),
-              selected = "PB"
+            # Box : Sélection GO
+            box(
+              title = "Ontologie GO",
+              width = 12,
+              selectInput(
+                inputId = "GO",
+                label = "Choisir l'ontologie GO :",
+                choices = c("Processus Biologique (BP)" = "BP", 
+                            "Composant Cellulaire (CC)" = "CC", 
+                            "Fonction Moléculaire (MF)" = "MF"),
+                selected = "BP"
+              )
             ),
             
-            #-----Sélection type de plot-----
-            selectInput(
-              inputId = "Choosen_plot",
-              label = "Choix du type de plot :",
-              choices = c("Barplot", "Dotplot", "Cnetplot", "Emapplot", "Goplot", "Upsetplot", "Heatplot"),
-              selected = "Barplot"
+            # Box : Sélection type de plot
+            box(
+              title = "Type de visualisation",
+              width = 12,
+              selectInput(
+                inputId = "Choosen_plot",
+                label = "Choix du type de plot :",
+                choices = c("Barplot", "Dotplot", "Cnetplot", "Emapplot", 
+                            "Goplot", "Upsetplot", "Heatplot"),
+                selected = "Dotplot"
+              )
             )
-            
           )
-        ),
-    
+        )
       ),
       
       #==============================================================================================
