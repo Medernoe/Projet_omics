@@ -92,21 +92,21 @@ plot_volcano <- function(data,
       highlight_row > 0 && 
       highlight_row <= nrow(data)) {  
     
-      # Ajouter un point plus grand pour le gène sélectionné
-      p <- p + geom_point(data = data[highlight_row, , drop = FALSE],
-                          aes(x = log2FC, y = -log10(pval)),
-                          color = "purple", 
-                          size = 2, 
-                          shape = 16) +
-        # Ajouter une étiquette avec le nom du gène
-        geom_text(data = data[highlight_row, , drop = FALSE],
-                  aes(x = log2FC, y = -log10(pval), label = GeneName),
-                  vjust = -1.5,
-                  hjust = 0.5,
-                  size = 4,
-                  fontface = "bold",
-                  color = "black")
-    }
+    # Ajouter un point plus grand pour le gène sélectionné
+    p <- p + geom_point(data = data[highlight_row, , drop = FALSE],
+                        aes(x = log2FC, y = -log10(pval)),
+                        color = "purple", 
+                        size = 2, 
+                        shape = 16) +
+      # Ajouter une étiquette avec le nom du gène
+      geom_text(data = data[highlight_row, , drop = FALSE],
+                aes(x = log2FC, y = -log10(pval), label = GeneName),
+                vjust = -1.5,
+                hjust = 0.5,
+                size = 4,
+                fontface = "bold",
+                color = "black")
+  }
   
   return(p)
 }
@@ -201,3 +201,113 @@ plot_ORA <- function(ego, label = 'enrichissement ORA', top_n = 10){
 
 
 # ---- GSEA -----
+
+# --- GSEA GO ---
+run_gsea_go <- function(ranked_gene_list, label,
+                        org_db = org.Hs.eg.db,
+                        ontology = c("BP", "CC", "MF"),
+                        p_adj = "BH", p_cutoff = 0.05,
+                        key_type = "SYMBOL") {
+  
+  result <- list()
+  for (GO_term in ontology) {
+    message(paste("Calcul GSEA GO pour :", GO_term))
+    
+    gse <- clusterProfiler::gseGO(
+      geneList      = ranked_gene_list,
+      OrgDb         = org_db,
+      keyType       = key_type,
+      ont           = GO_term,
+      pAdjustMethod = p_adj,
+      pvalueCutoff  = p_cutoff,
+      verbose       = FALSE
+    )
+    result[[GO_term]] <- gse
+  }
+  return(result)
+}
+
+# --- GSEA KEGG ---
+run_gsea_kegg <- function(ranked_gene_list, label,
+                          organism = "hsa", # "mmu" pour la souris
+                          p_adj = "BH", p_cutoff = 0.05) {
+  
+  message("Calcul GSEA KEGG")
+  gse_kegg <- clusterProfiler::gseKEGG(
+    geneList      = ranked_gene_list,
+    organism      = organism,
+    pAdjustMethod = p_adj,
+    pvalueCutoff  = p_cutoff,
+    verbose       = FALSE
+  )
+  return(gse_kegg)
+}
+
+# --- GSEA Reactome ---
+run_gsea_reactome <- function(ranked_gene_list, label,
+                              organism = "human", # "mouse" pour la souris
+                              p_adj = "BH", p_cutoff = 0.05) {
+  
+  message("Calcul GSEA Reactome")
+  gse_reac <- ReactomePA::gsePathway(
+    geneList      = ranked_gene_list,
+    organism      = organism,
+    pAdjustMethod = p_adj,
+    pvalueCutoff  = p_cutoff,
+    verbose       = FALSE
+  )
+  return(gse_reac)
+}
+
+#plot 
+plot_GSEA <- function(gse_obj, label = 'enrichissement GSEA', top_n = 10) {
+  
+  p_dot <- enrichplot::dotplot(gse_obj, showCategory = top_n) +
+    ggtitle(paste0("Dotplot GSEA – ", label)) +
+    theme_minimal()
+  
+  p_upset <- enrichplot::upsetplot(gse_obj) +
+    ggtitle(paste0("Upset Plot GSEA – ", label))
+  
+  p_cnet <- enrichplot::cnetplot(gse_obj, 
+                                 showCategory = 5, 
+                                 circular = FALSE, 
+                                 colorEdge = TRUE) +
+    ggtitle(paste0("Réseau Gènes-Concepts – ", label))
+  
+  gse_sim <- enrichplot::pairwise_termsim(gse_obj)
+  p_emap <- enrichplot::emapplot(gse_sim, showCategory = top_n) +
+    ggtitle(paste0("Carte de similarité (Emap) – ", label))
+  
+  p_gsea <- enrichplot::gseaplot(gse_obj, 
+                                 geneSetID = 1, 
+                                 by = "all", 
+                                 title = gse_obj$Description[1])
+  
+  p_heat <- enrichplot::heatplot(gse_obj, showCategory = top_n) +
+    ggtitle(paste0("Heatmap Gènes-Termes – ", label))
+  
+  p_gsea2 <- enrichplot::gseaplot2(gse_obj, 
+                                   geneSetID = 1:3, 
+                                   pvalue_table = TRUE)
+  
+  p_rank <- enrichplot::gsearank(gse_obj, 1, title = gse_obj[1, "Description"])
+  
+  p_ridge <- enrichplot::ridgeplot(gse_obj, showCategory = top_n) +
+    ggtitle(paste0("Ridgeplot (Distribution log2FC) – ", label)) +
+    theme_minimal()
+  
+  result = list(
+    Dotplot = p_dot,
+    Upsetplot = p_upset,
+    Cnetplot = p_cnet,
+    Emapplot = p_emap,
+    Heatplot = p_heat,
+    Gseaplot = p_gsea
+    Gseaplot2 = p_gsea2,
+    Gsearank = p_rank,
+    Ridgeplot = p_ridge
+  )
+  
+  return(result)
+}
