@@ -7,6 +7,8 @@
 #développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
 #==================================================================================================
 
+# ========================== DEG ========================== 
+
 # Classe la significativité des gènes selon la pvalue et logFC
 significativity <- function(data, log2FC_cutoff, P_cutoff){ 
   
@@ -39,9 +41,6 @@ significativity <- function(data, log2FC_cutoff, P_cutoff){
   
   return(data)
 }
-
-
-
 
 # Plot volcano 
 plot_volcano <- function(data, 
@@ -111,3 +110,94 @@ plot_volcano <- function(data,
   
   return(p)
 }
+
+
+
+# ========================== Enrichissement ========================== 
+
+# ---- ORA -----
+
+#enrichissement 
+run_go_enrichment <- function(gene_list, label,
+                              org_db = org.Hs.eg.db,
+                              ontology = c("BP", "CC", "MF"),
+                              p_adj = "BH", q_cutoff = 0.05,
+                              key_type = "SYMBOL") {
+  
+  
+  result <- list()
+  for (GO_term in ontology) {
+    message(paste("Calcul de l'enrichissement pour :", GO_term))
+    
+    ego <- clusterProfiler::enrichGO(
+      gene          = gene_list, 
+      OrgDb         = org_db, 
+      keyType       = key_type, 
+      ont           = GO_term,  
+      pAdjustMethod = p_adj, 
+      qvalueCutoff  = q_cutoff, 
+      readable      = TRUE
+    )
+    
+    # Stocker dans la liste avec le nom de l'ontologie
+    result[[GO_term]] <- ego
+  }
+  
+  return(result)
+}
+
+
+
+#plot 
+plot_ORA <- function(ego, label = 'enrichissement ORA', top_n = 10){
+  # Barplot 
+  p_bar <- barplot(ego, showCategory = top_n) +
+    ggtitle(paste0("GO-BP Barplot – ", label)) +
+    theme_minimal()
+  
+  # Dotplot 
+  p_dot <- dotplot(ego, showCategory = top_n) +
+    ggtitle(paste0("Enrichissement GO-BP – ", label)) +
+    theme_minimal()
+  
+  # Cnetplot 
+  p_cnet <- cnetplot(ego, showCategory = 5, circular = FALSE, colorEdge = TRUE) +
+    ggtitle(paste0("Réseau Gènes-Concepts – ", label)) +
+    theme_minimal()
+  
+  # Emapplot 
+  ego_sim <- pairwise_termsim(ego) 
+  p_emap <- emapplot(ego_sim, showCategory = top_n) +
+    ggtitle(paste0("Carte de similarité des termes – ", label)) + 
+    theme_minimal()
+  
+  # Goplot 
+  p_go <- goplot(ego, showCategory = 10) + 
+    ggtitle(paste0("Hiérarchie GO – ", label)) +
+    theme_minimal()
+  
+  # Upsetplot 
+  p_upset <- upsetplot(ego) + 
+    ggtitle(paste0("Intersections des gènes – ", label)) +
+    theme_minimal()
+  
+  # Heatplot 
+  p_heat <- heatplot(ego, showCategory = 10) +
+    ggtitle(paste0("Heatmap Gènes-Termes – ", label)) +
+    theme_minimal()
+  
+  #concatène tous les plots afins d'etre appelé plus facilement 
+  result = list(Barplot = p_bar, 
+                Dotplot = p_dot, 
+                Cnetplot = p_cnet,
+                Emapplot = p_emap, 
+                Goplot = p_go,
+                Upsetplot = p_upset,
+                Heatplot = p_heat
+  )
+  
+  return(result)
+}
+
+
+# ---- GSEA -----

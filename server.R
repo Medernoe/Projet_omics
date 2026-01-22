@@ -80,8 +80,13 @@ function(input, output, session) {
                     P_cutoff = seuil_pvalue_debounced())
   })
   
+  
+  
   #==================================================================================================
-  # VOLCANO PLOT
+  # DEG 
+  #==================================================================================================
+  
+  # ----------------------- VOLCANO PLOT -----------------------
 
   # Création du volcano plot avec ggplot
   create_volcano <- reactive({
@@ -154,8 +159,7 @@ function(input, output, session) {
     }
   )
   
-  #==================================================================================================
-  # TABLEAU DES DONNÉES
+  # ----------------------- TABLEAU DES DONNÉES -----------------------
 
   # Condition pour afficher le message d'erreur (pas de fichier chargé)
   output$show_data_error <- reactive({
@@ -186,4 +190,114 @@ function(input, output, session) {
       )
     )
   })
+  
+
+  
+  #==================================================================================================
+  # Enrichissement 
+  #==================================================================================================
+  
+  # ----------------------- ORA -----------------------
+  
+  # Cette fonction réactive calcule les GO terms pour BP, CC, MC
+  #
+  #
+  processed_data_ORA <- reactive({
+    if (is.null(data())) {
+      return(NULL)
+    }
+
+    ego <- run_go_enrichment(
+                      data$GeneName, 
+                      "test", 
+                      org_db = org.Hs.eg.db # mettre l'organisme en fonction de ca
+                      )
+    return(ego)
+  })
+  #
+  #
+  
+  
+  # Création des plots pour ORA
+  #
+  #
+  create_plot_ORA <- reactive({
+    req(processed_data_ORA())  # S'assure que les données existent avant de créer le plot
+    
+    # recuperer le Go terme souhaiter par l'utilisateur 
+    df <- processed_data_ORA()
+    selected_Go <- input$GO  
+    ego <- df["selected_Go"]
+    # recuperer le top_n terme souhaiter par l'utilisateur 
+    top_n <- input$top_n
+    # recuperer le titre souhaiter par l'utilisateur 
+    label <- input$Titre
+    
+    # Fonction custom : génère les différents plot 
+    list_plot_ora <- plot_ORA(ego, label = label, top_n = top_n)
+    
+    return(list_plot_ora)
+  })
+  #
+  #
+  
+  
+  
+  # Condition pour afficher l'image d'erreur (pas de fichier chargé)
+  # Cette fonction reactive retourne TRUE si aucun fichier n'est chargé ou si data n'a pas le bon format  
+
+#modifier ici pour mettre l'erreur propre a ora plot enrichissement
+  output$show_volcano_error <- reactive({
+    is.null(input$file) || is.null(data())
+  })
+  outputOptions(output, "show_volcano_error", suspendWhenHidden = FALSE)
+  
+  # Image d'erreur pour le volcano plot
+  output$volcano_error_img <- renderImage({
+    list(
+      src = "www/erreur_format.jpg",  
+      contentType = "image/jpeg",      
+      width = "70%",                   
+      height = "auto",                 
+      alt = "Format de fichier attendu"
+    )
+  }, deleteFile = FALSE)  
+  
+  # Rendu du ora plot interactif avec Plotly
+  output$ORA_plot <- renderPlotly({
+    req(input$file)  
+    
+    # Fonction custom de création du vplot 
+    list_ora_plot <- create_plot_ORA()
+    
+    #choix du plot
+    list_ora_plot[input$Choosen_plot]
+    
+    # Conversion du ggplot en plotly 
+    ggplotly(p, tooltip = c("x", "y", "colour")) %>%
+      layout(
+        dragmode = "zoom",      
+        hovermode = "closest"   
+      ) %>%
+      config(
+        # Affiche/masque la barre d'outils selon l'input
+        displayModeBar = input$toolbox,  
+        modeBarButtonsToAdd = list("drawrect", "eraseshape"),
+        modeBarButtonsToRemove = list("toImage"),
+        displaylogo = FALSE
+      ) %>%
+      # WebGL boost les performances 
+      plotly::toWebGL() 
+  })
+  
+  # Téléchargement du volcano plot en PNG
+  output$downloadORA <- downloadHandler(
+    filename = function() {
+      paste("Volcano_plot_", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = create_volcano(), width = 12, height = 8, dpi = 300)
+    }
+  )
+
 }

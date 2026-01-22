@@ -1,0 +1,12 @@
+taches : 
+- création enrichGO : done
+- creation plot enrichissement : done 
+- creation avec ggplot d'un Manhattan plot :
+- Ajouter un chargement avec un gif pour les temps d'attente : 
+- mettre au propre la mise en page de ORA
+- réaliser la enrichKEGG ORA : 
+- Réaliser enrichKEGG GSEA :
+- Réaliser enrichGO GSEA :
+- Mettre au propre les erreurs de plot : 
+- Ajouter les sous menues dans enrichissement ORA/GSEA : 
+- Ajouter une page par défaut dans enrichissement (mettre un tuto utilisation enrichissement) : 
