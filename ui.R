@@ -7,7 +7,6 @@
 #développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
 #==================================================================================================
 source("global.R")
-useShinyalert()
 
 #==================================================================================================
 # INTERFACE UTILISATEUR
@@ -137,14 +136,14 @@ dashboardPage(
             box(
               title = "Titre",
               width = 12,
-              textInput("Titre", "Entrer un titre pour la figure :")
+              textInput("title_DEG", "Entrer un titre pour la figure :")
             ),
             
             # Box : Activation ToolBox
             box(
               title = "ToolBox",
               width = 12,
-              checkboxInput("toolbox", "Activer la barre d'outils", value = TRUE)
+              checkboxInput("toolbox_DEG", "Activer la barre d'outils", value = TRUE)
             ),
             
             # Box : Seuils de significativité
@@ -212,14 +211,15 @@ dashboardPage(
                   style = "text-align: center; padding: 20px;",
                   p("Veuillez charger un fichier CSV au format attendu pour visualiser son Volcano Plot",
                     style = "font-size: 16px; color: #666; margin-bottom: 20px;"),
-                  imageOutput("volcano_error_img", height = "450px", inline = TRUE)
+                  imageOutput("volcano_error_img_ora", height = "450px", inline = TRUE)
                 )
               ),
               
               # Plot conditionnel (affiché si fichier chargé)
               conditionalPanel(
                 condition = "!output.show_volcano_error",
-                plotlyOutput("volcano_plot", height = "500px")
+                plotlyOutput("volcano_plot_ora", 
+                             height = "500px")
               ),
               
               # Bouton de téléchargement
@@ -235,14 +235,14 @@ dashboardPage(
             box(
               title = "Titre",
               width = 12,
-              textInput("Titre", "Entrer un titre pour la figure :")
+              textInput("titre_ORA", "Entrer un titre pour la figure :")
             ),
             
             # Box : Activation ToolBox
             box(
               title = "ToolBox",
               width = 12,
-              checkboxInput("toolbox", "Activer la barre d'outils", value = TRUE)
+              checkboxInput("toolbox_ORA", "Activer la barre d'outils", value = TRUE)
             ),
             
             

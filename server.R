@@ -101,7 +101,7 @@ function(input, output, session) {
                            P_cutoff = seuil_pvalue_debounced(),
                            seuil_v = input$v,      # Affiche/masque lignes verticales
                            seuil_h = input$h,      # Affiche/masque ligne horizontale
-                           title = input$Titre,
+                           title = input$title_DEG,
                            highlight_row = selected_row)
     
     return(plot_v)
@@ -140,7 +140,7 @@ function(input, output, session) {
       ) %>%
       config(
         # Affiche/masque la barre d'outils selon l'input
-        displayModeBar = input$toolbox,  
+        displayModeBar = input$toolbox_DEG,  
         modeBarButtonsToAdd = list("drawrect", "eraseshape"),
         modeBarButtonsToRemove = list("toImage"),
         displaylogo = FALSE
@@ -231,7 +231,7 @@ function(input, output, session) {
     # recuperer le top_n terme souhaiter par l'utilisateur 
     top_n <- input$top_n
     # recuperer le titre souhaiter par l'utilisateur 
-    label <- input$Titre
+    label <- input$title_ORA
     
     # Fonction custom : génère les différents plot 
     list_plot_ora <- plot_ORA(ego, label = label, top_n = top_n)
@@ -281,7 +281,7 @@ function(input, output, session) {
       ) %>%
       config(
         # Affiche/masque la barre d'outils selon l'input
-        displayModeBar = input$toolbox,  
+        displayModeBar = input$toolbox_ORA,  
         modeBarButtonsToAdd = list("drawrect", "eraseshape"),
         modeBarButtonsToRemove = list("toImage"),
         displaylogo = FALSE
