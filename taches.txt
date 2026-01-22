@@ -10,4 +10,4 @@ taches :
 - Mettre au propre les erreurs de plot : 
 - Ajouter les sous menues dans enrichissement ORA/GSEA : 
 - Ajouter une page par défaut dans enrichissement (mettre un tuto utilisation enrichissement) : 
-- Utiliser l'netrée utilisateur de selection d'organismes (org.db, org dans enrich kegg)
+- Utiliser l'entrée utilisateur de selection d'organismes (org.db, org dans enrich kegg)
