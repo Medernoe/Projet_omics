@@ -161,7 +161,7 @@ plot_ORA <- function(ego, label = 'enrichissement ORA', top_n = 10){
     theme_minimal()
   
   # Cnetplot 
-  p_cnet <- cnetplot(ego, showCategory = 5, circular = FALSE, colorEdge = TRUE) +
+  p_cnet <- cnetplot(ego, showCategory = 5) +
     ggtitle(paste0("Réseau Gènes-Concepts – ", label)) +
     theme_minimal()
   
@@ -303,7 +303,7 @@ plot_GSEA <- function(gse_obj, label = 'enrichissement GSEA', top_n = 10) {
     Cnetplot = p_cnet,
     Emapplot = p_emap,
     Heatplot = p_heat,
-    Gseaplot = p_gsea
+    Gseaplot = p_gsea,
     Gseaplot2 = p_gsea2,
     Gsearank = p_rank,
     Ridgeplot = p_ridge

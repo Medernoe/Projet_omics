@@ -7,6 +7,8 @@
 #développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
 #==================================================================================================
 source("global.R")
+useShinyalert()
+
 
 #==================================================================================================
 # INTERFACE UTILISATEUR
@@ -120,7 +122,13 @@ dashboardPage(
               # Plot conditionnel (affiché si fichier chargé)
               conditionalPanel(
                 condition = "!output.show_volcano_error",
-                plotlyOutput("volcano_plot", height = "500px")
+                withSpinner(plotlyOutput("volcano_plot", height = "500px"),
+                            type = 0,        # Type de spinner (0 for custom 1 à 8)
+                            color = "#3498db", # Couleur (bleu par défaut)
+                            image = "sleepy-snorlax.gif",       
+                            image.width = "50%",      
+                            image.height = "50%",
+                          )
               ),
               
               # Bouton de téléchargement
@@ -231,7 +239,20 @@ dashboardPage(
             box(
               title = "Titre",
               width = 12,
-              textInput("titre_ORA", "Entrer un titre pour la figure :")
+              textInput("title_ORA", "Entrer un titre pour la figure :")
+            ),
+            
+            # Box : ORA ou GSEA
+            box(
+              title = "Enrichment Method",
+              width = 12,
+              selectInput(
+                inputId = "enrichment_method",
+                label = "Choisir la méthode",
+                choices = c("ORA", 
+                            "GSEA"),
+                selected = "ORA"
+              )
             ),
             
             # Box : Activation ToolBox
@@ -245,7 +266,7 @@ dashboardPage(
             box(
               title = "Nombre de termes GO",
               width = 12,
-              sliderInput("top_n_Go", "Nombre de termes GO à afficher :", 
+              sliderInput("top_n_go", "Nombre de termes GO à afficher :", 
                           min = 5, max = 50, value = 10, step = 5, width = "100%")
             ),
             

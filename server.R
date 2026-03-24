@@ -90,7 +90,7 @@ function(input, output, session) {
 
   # Création du volcano plot avec ggplot
   create_volcano <- reactive({
-    req(processed_data())  # S'assure que les données existent avant de créer le plot
+    req(data())  # S'assure que les données existent avant de créer le plot
     
     df <- processed_data()
     selected_row <- input$data_rows_selected  # Récupère la ligne sélectionnée dans le tableau
@@ -130,10 +130,10 @@ function(input, output, session) {
     req(input$file)  
     
     # Fonction custom de création du vplot 
-    p <- create_volcano()
+    volcano <- create_volcano()
     
     # Conversion du ggplot en plotly 
-    ggplotly(p, tooltip = c("x", "y", "colour")) %>%
+    ggplotly(volcano, tooltip = c("x", "y", "colour")) %>%
       layout(
         dragmode = "zoom",      
         hovermode = "closest"   
@@ -200,23 +200,46 @@ function(input, output, session) {
   # ----------------------- ORA -----------------------
   
   # Cette fonction réactive calcule les GO terms pour BP, CC, MC
-  #
-  #
   processed_data_ORA <- reactive({
     if (is.null(data())) {
       return(NULL)
     }
+    
+    df <- processed_data()
+    
+    cat("\n=== DEBUG Significance ===\n")
+    cat("Valeurs uniques:", unique(df$Significance), "\n")
+    cat("Nombre total de gènes:", nrow(df), "\n")
+    
+    significant_genes <- df$GeneName[as.character(df$Significance) != "Not significant"]
+    
+    if (length(significant_genes) == 0) {
+      return(NULL)
+    }
+    
+    label <- ifelse(is.null(input$title_ORA) || input$title_ORA == "", 
+                    "Enrichissement", 
+                    input$title_ORA)
 
-    ego <- run_go_enrichment(
-                      data$GeneName, 
-                      "test", 
-                      org_db = org.Hs.eg.db # mettre l'organisme en fonction de ca
-                      )
-    return(ego)
+    ego_list <- run_go_enrichment(
+      gene_list = significant_genes, 
+      label = label,
+      org_db = org.Hs.eg.db,  # TODO: adapter selon input$species plus tard
+      ontology = c("BP", "CC", "MF"),
+      p_adj = "BH",
+      q_cutoff = 0.05,
+      key_type = "SYMBOL"
+    )
+    
+    cat("\n=== Résultats enrichissement ===\n")
+    cat("BP:", nrow(as.data.frame(ego_list$BP)), "termes\n")
+    cat("CC:", nrow(as.data.frame(ego_list$CC)), "termes\n")
+    cat("MF:", nrow(as.data.frame(ego_list$MF)), "termes\n")
+    
+    return(ego_list)
   })
   #
   #
-  
   
   # Création des plots pour ORA
   #
@@ -225,13 +248,17 @@ function(input, output, session) {
     req(processed_data_ORA())  # S'assure que les données existent avant de créer le plot
     
     # recuperer le Go terme souhaiter par l'utilisateur 
-    df <- processed_data_ORA()
-    selected_Go <- input$GO  
-    ego <- df["selected_Go"]
+    ego_list <- processed_data_ORA()
+    
+    # selection de l'ontologie choisie (BP, CC ou MF)
+    selected_go <- input$GO  
+    ego <- ego_list[[selected_go]]
     # recuperer le top_n terme souhaiter par l'utilisateur 
-    top_n <- input$top_n
+    top_n <- input$top_n_go
     # recuperer le titre souhaiter par l'utilisateur 
-    label <- input$title_ORA
+    label <- ifelse(is.null(input$title_ORA) || input$title_ORA == "", 
+                    paste0("Enrichissement GO-", selected_go), 
+                    input$title_ORA)
     
     # Fonction custom : génère les différents plot 
     list_plot_ora <- plot_ORA(ego, label = label, top_n = top_n)
@@ -247,34 +274,40 @@ function(input, output, session) {
   # Cette fonction reactive retourne TRUE si aucun fichier n'est chargé ou si data n'a pas le bon format  
 
 #modifier ici pour mettre l'erreur propre a ora plot enrichissement
-  output$show_volcano_error <- reactive({
-    is.null(input$file) || is.null(data())
+  output$show_enrichment_error <- reactive({
+    is.null(input$file) || is.null(data()) || is.null(processed_data_ORA())
   })
-  outputOptions(output, "show_volcano_error", suspendWhenHidden = FALSE)
+  outputOptions(output, "show_enrichment_error", suspendWhenHidden = FALSE)
   
-  # Image d'erreur pour le volcano plot
-  output$volcano_error_img <- renderImage({
+  # Image d'erreur pour l'enrichissement
+  output$enrichment_error_img <- renderImage({ 
     list(
-      src = "www/erreur_format.jpg",  
+      src = "www/erreur_format.jpg",  # TODO faire une image d'erreur
       contentType = "image/jpeg",      
       width = "70%",                   
       height = "auto",                 
-      alt = "Format de fichier attendu"
+      alt = "Aucun gène significatif ou format du fichier incorrect"
     )
-  }, deleteFile = FALSE)  
+  }, deleteFile = FALSE)
+  
   
   # Rendu du ora plot interactif avec Plotly
-  output$ORA_plot <- renderPlotly({
-    req(input$file)  
+  output$enrichment_plot <- renderPlotly({
+    req(create_plot_ORA())  
     
     # Fonction custom de création du vplot 
     list_ora_plot <- create_plot_ORA()
     
     #choix du plot
-    list_ora_plot[input$Choosen_plot]
+    selected_plot <- list_ora_plot[[input$Choosen_plot]]
+    
+    # Vérification que le plot existe
+    if (is.null(selected_plot)) {
+      return(NULL)
+    }
     
     # Conversion du ggplot en plotly 
-    ggplotly(p, tooltip = c("x", "y", "colour")) %>%
+    ggplotly(selected_plot ,tooltip = c("x", "y", "text")) %>%
       layout(
         dragmode = "zoom",      
         hovermode = "closest"   
@@ -291,12 +324,17 @@ function(input, output, session) {
   })
   
   # Téléchargement du volcano plot en PNG
-  output$downloadORA <- downloadHandler(
+  output$downloadEnrichment <- downloadHandler(
     filename = function() {
-      paste("Volcano_plot_", Sys.Date(), ".png", sep = "")
+      paste0("Enrichissement_", input$Choosen_plot, "_", 
+             input$GO, "_", Sys.Date(), ".png")
     },
     content = function(file) {
-      ggsave(file, plot = create_volcano(), width = 12, height = 8, dpi = 300)
+      # Récupère le plot sélectionné
+      list_ora_plot <- create_plot_ORA()
+      selected_plot <- list_ora_plot[[input$Choosen_plot]]
+      # Save le plot
+      ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
     }
   )
 
