@@ -10,6 +10,8 @@
 # ========================== DEG ========================== 
 
 # Classe la significativité des gènes selon la pvalue et logFC
+# entree : tableau avec colonne spe, un seuil pvalue et logFC 
+# sortie : retourne un data modifier avec une colonne de significativité selon les seuils 
 significativity <- function(data, log2FC_cutoff, P_cutoff){ 
   
   data$Significance <- "Not significant"
@@ -42,7 +44,10 @@ significativity <- function(data, log2FC_cutoff, P_cutoff){
   return(data)
 }
 
+
 # Plot volcano 
+# entree : un tableau et des seuils 
+# un vplot 
 plot_volcano <- function(data, 
                          log2FC_cutoff,
                          P_cutoff, 
@@ -115,19 +120,28 @@ plot_volcano <- function(data,
 
 # ========================== Enrichissement ========================== 
 
+
 # ---- ORA -----
 
-#enrichissement 
-run_go_enrichment <- function(gene_list, label,
-                              org_db = org.Hs.eg.db,
-                              ontology = c("BP", "CC", "MF"),
-                              p_adj = "BH", q_cutoff = 0.05,
-                              key_type = "SYMBOL") {
-  
+# ORA : GO 
+# Entrée : 
+#   - gene_list : un vecteur de caractères contenant les IDs des gènes significatifs.
+#   - label : titre de l'analyse
+#   - org_db : base de données d'annotations de l'organisme (ex: org.Hs.eg.db).
+#   - ontology : ontologies à tester ("BP", "CC", "MF"). # // spécifier l'ontologie depuis l'input utilisateur pour accélérer le processus
+#   - p_adj : méthode d'ajustement de la p-value (défaut "BH").
+#   - p_cutoff : seuil de significativité pour la p-value (défaut 0.05).
+#   - key_type : format des IDs de gènes en entrée (ex: "SYMBOL" ou "ENTREZID" = valeur).
+# Sortie : Une liste contenant les objets pour chaque ontologie testée.
+run_ORA_go <- function(gene_list, label,
+                       org_db = org.Hs.eg.db,
+                       ontology = c("BP", "CC", "MF"),
+                       p_adj = "BH", p_cutoff = 0.05,
+                       key_type = "SYMBOL") {
   
   result <- list()
   for (GO_term in ontology) {
-    message(paste("Calcul de l'enrichissement pour :", GO_term))
+    message(paste("Calcul de l'enrichissement ORA GO pour :", GO_term))
     
     ego <- clusterProfiler::enrichGO(
       gene          = gene_list, 
@@ -135,7 +149,8 @@ run_go_enrichment <- function(gene_list, label,
       keyType       = key_type, 
       ont           = GO_term,  
       pAdjustMethod = p_adj, 
-      qvalueCutoff  = q_cutoff, 
+      pvalueCutoff  = p_cutoff,
+      qvalueCutoff  = 1, # On force à 1 pour ne filtrer QUE sur la p-value // peut etre modifier pour filtrer sur les 2 
       readable      = TRUE
     )
     
@@ -147,62 +162,72 @@ run_go_enrichment <- function(gene_list, label,
 }
 
 
-
-#plot 
-plot_ORA <- function(ego, label = 'enrichissement ORA', top_n = 10){
-  # Barplot 
-  p_bar <- barplot(ego, showCategory = top_n) +
-    ggtitle(paste0("GO-BP Barplot – ", label)) +
-    theme_minimal()
+# ORA : KEGG 
+# Entrée : 
+#   - gene_list : un vecteur contenant les IDs des gènes (ENTREZID pour KEGG).
+#   - label : identifiant ou nom de l'analyse.
+#   - organism : code organisme pour KEGG (ex: "hsa" pour humain, "mmu" pour souris). # // lier à l'input utilisateur "organisme"
+#   - p_adj : méthode d'ajustement de la p-value.
+#   - p_cutoff : seuil de significativité pour la p-value. 
+# Sortie : Un objet `enrichResult` contenant l'enrichissement KEGG.
+run_ORA_KEGG <- function(gene_list, label,
+                         organism = "hsa",
+                         p_adj = "BH", p_cutoff = 0.05) {
   
-  # Dotplot 
-  p_dot <- dotplot(ego, showCategory = top_n) +
-    ggtitle(paste0("Enrichissement GO-BP – ", label)) +
-    theme_minimal()
+  message("Calcul de l'enrichissement ORA pour : KEGG")
   
-  # Cnetplot 
-  p_cnet <- cnetplot(ego, showCategory = 5) +
-    ggtitle(paste0("Réseau Gènes-Concepts – ", label)) +
-    theme_minimal()
-  
-  # Emapplot 
-  ego_sim <- pairwise_termsim(ego) 
-  p_emap <- emapplot(ego_sim, showCategory = top_n) +
-    ggtitle(paste0("Carte de similarité des termes – ", label)) + 
-    theme_minimal()
-  
-  # Goplot 
-  p_go <- goplot(ego, showCategory = 10) + 
-    ggtitle(paste0("Hiérarchie GO – ", label)) +
-    theme_minimal()
-  
-  # Upsetplot 
-  p_upset <- upsetplot(ego) + 
-    ggtitle(paste0("Intersections des gènes – ", label)) +
-    theme_minimal()
-  
-  # Heatplot 
-  p_heat <- heatplot(ego, showCategory = 10) +
-    ggtitle(paste0("Heatmap Gènes-Termes – ", label)) +
-    theme_minimal()
-  
-  #concatène tous les plots afins d'etre appelé plus facilement 
-  result = list(Barplot = p_bar, 
-                Dotplot = p_dot, 
-                Cnetplot = p_cnet,
-                Emapplot = p_emap, 
-                Goplot = p_go,
-                Upsetplot = p_upset,
-                Heatplot = p_heat
+  ekegg <- clusterProfiler::enrichKEGG(
+    gene          = gene_list, 
+    organism      = organism, 
+    pAdjustMethod = p_adj, 
+    pvalueCutoff  = p_cutoff,
+    qvalueCutoff  = 1 # On force à 1 pour ne filtrer QUE sur la p-value
   )
   
-  return(result)
+  return(ekegg)
 }
 
 
-# ---- GSEA -----
+# ORA : Pathways (Reactome)
+# Entrée : 
+#   - gene_list : un vecteur contenant les IDs des gènes (ENTREZID pour Reactome).
+#   - label : identifiant ou nom de l'analyse.
+#   - organism : nom de l'organisme (ex: "human", "mouse"). # // lier à l'input utilisateur "organisme"
+#   - p_adj : méthode d'ajustement de la p-value.
+#   - p_cutoff : seuil de significativité pour la p-value. # // je veux seuiller sur pvalue !!
+# Sortie : Un objet `enrichResult` contenant l'enrichissement Reactome.
+run_ORA_pathway <- function(gene_list, label,
+                            organism = "human",
+                            p_adj = "BH", p_cutoff = 0.05) {
+  
+  message("Calcul de l'enrichissement ORA pour : Reactome Pathways")
+  
+  epath <- ReactomePA::enrichPathway(
+    gene          = gene_list, 
+    organism      = organism, 
+    pAdjustMethod = p_adj, 
+    pvalueCutoff  = p_cutoff,
+    qvalueCutoff  = 1, # On force à 1 pour ne filtrer QUE sur la p-value
+    readable      = TRUE # Permet de repasser en SYMBOL dans les résultats si possible
+  )
+  
+  return(epath)
+}
 
-# --- GSEA GO ---
+
+
+# ----- GSEA -----
+
+# GSEA : GO 
+# Entrée : 
+#   - ranked_gene_list : un vecteur numérique nommé, trié par ordre décroissant (ex: Log2FC), dont les noms sont les IDs des gènes.
+#   - label : identifiant ou nom de l'analyse.
+#   - org_db : base de données de l'organisme.
+#   - ontology : vecteur des ontologies à tester ("BP", "CC", "MF"). // spécifier l'ontologie depuis l'input utilisateur pour accélérer le processus
+#   - p_adj : méthode d'ajustement.
+#   - p_cutoff : seuil de significativité de la p-value ajustée.
+#   - key_type : type d'ID des gènes (ex: "SYMBOL").
+# Sortie : Une liste contenant les objets `gseaResult` pour chaque ontologie.
 run_gsea_go <- function(ranked_gene_list, label,
                         org_db = org.Hs.eg.db,
                         ontology = c("BP", "CC", "MF"),
@@ -227,9 +252,17 @@ run_gsea_go <- function(ranked_gene_list, label,
   return(result)
 }
 
-# --- GSEA KEGG ---
+
+# GSEA : KEGG 
+# Entrée : 
+#   - ranked_gene_list : un vecteur numérique nommé et trié (noms = ENTREZID obligatoirement pour KEGG).
+#   - label : identifiant ou nom de l'analyse.
+#   - organism : code organisme ("hsa" pour humain, "mmu" pour souris). // lier à l'input utilisateur "organisme"
+#   - p_adj : méthode d'ajustement.
+#   - p_cutoff : seuil de significativité de la p-value. 
+# Sortie : Un objet `gseaResult` contenant les résultats GSEA KEGG.
 run_gsea_kegg <- function(ranked_gene_list, label,
-                          organism = "hsa", # "mmu" pour la souris
+                          organism = "hsa", 
                           p_adj = "BH", p_cutoff = 0.05) {
   
   message("Calcul GSEA KEGG")
@@ -243,9 +276,17 @@ run_gsea_kegg <- function(ranked_gene_list, label,
   return(gse_kegg)
 }
 
-# --- GSEA Reactome ---
+
+# GSEA : Reactome 
+# Entrée : 
+#   - ranked_gene_list : un vecteur numérique nommé et trié (noms = ENTREZID obligatoirement pour Reactome).
+#   - label : identifiant ou nom de l'analyse.
+#   - organism : nom de l'organisme ("human", "mouse"). // lier à l'input utilisateur "organisme"
+#   - p_adj : méthode d'ajustement.
+#   - p_cutoff : seuil de significativité de la p-value.
+# Sortie : Un objet `gseaResult` contenant les résultats GSEA Reactome.
 run_gsea_reactome <- function(ranked_gene_list, label,
-                              organism = "human", # "mouse" pour la souris
+                              organism = "human", 
                               p_adj = "BH", p_cutoff = 0.05) {
   
   message("Calcul GSEA Reactome")
@@ -259,55 +300,255 @@ run_gsea_reactome <- function(ranked_gene_list, label,
   return(gse_reac)
 }
 
-#plot 
-plot_GSEA <- function(gse_obj, label = 'enrichissement GSEA', top_n = 10) {
+
+# ========================= Visualisation ========================== 
+
+
+#  ----- ORA / GSEA -----
+
+# Plot : Dotplot
+# Entrée : 
+#   - enrich_obj : Objet de résultat (ORA ou GSEA)
+#   - label : Titre du graphique
+#   - top_n : Nombre de catégories à afficher // Lier à un numeric/slider input au front
+# Sortie : Objet ggplot
+generate_dotplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
+  p <- enrichplot::dotplot(enrich_obj, showCategory = top_n) +
+    ggplot2::ggtitle(paste0("Dotplot – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+# Plot : Cnetplot (Réseau Gènes-Concepts)
+# Entrée : 
+#   - enrich_obj : Objet de résultat (ORA ou GSEA)
+#   - label : Titre du graphique 
+#   - top_n : Nombre de concepts à afficher // Lier à un numeric input (souvent plus bas, ex: 5)
+# Sortie : Objet ggplot
+generate_cnetplot <- function(enrich_obj, label = 'Enrichissement', top_n = 5) {
+  p <- enrichplot::cnetplot(enrich_obj, 
+                            showCategory = top_n, 
+                            circular = FALSE, 
+                            colorEdge = TRUE) +
+    ggplot2::ggtitle(paste0("Réseau Gènes-Concepts – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+# Plot : Emapplot (Carte de similarité)
+# Entrée : 
+#   - enrich_obj : Objet de résultat (ORA ou GSEA)
+#   - label : Titre du graphique
+#   - top_n : Nombre de catégories à afficher // Lier à un numeric/slider input
+# Sortie : Objet ggplot
+generate_emapplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
+  # L'Emapplot nécessite d'abord le calcul de la similarité des termes
+  sim_obj <- enrichplot::pairwise_termsim(enrich_obj)
   
-  p_dot <- enrichplot::dotplot(gse_obj, showCategory = top_n) +
-    ggtitle(paste0("Dotplot GSEA – ", label)) +
-    theme_minimal()
+  p <- enrichplot::emapplot(sim_obj, showCategory = top_n) +
+    ggplot2::ggtitle(paste0("Carte de similarité (Emap) – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+# Plot : Upsetplot (Intersections des gènes)
+# Entrée : 
+#   - enrich_obj : Objet de résultat (ORA ou GSEA)
+#   - label : Titre du graphique
+# Sortie : Objet ggplot / upset
+generate_upsetplot <- function(enrich_obj, label = 'Enrichissement') {
+  p <- enrichplot::upsetplot(enrich_obj) +
+    ggplot2::ggtitle(paste0("Intersections des gènes – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+# Plot : Heatplot (Heatmap Gènes-Termes)
+# Entrée : 
+#   - enrich_obj : Objet de résultat (ORA ou GSEA)
+#   - label : Titre du graphique
+#   - top_n : Nombre de catégories à afficher // Lier à un numeric/slider input
+# Sortie : Objet ggplot
+generate_heatplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
+  p <- enrichplot::heatplot(enrich_obj, showCategory = top_n) +
+    ggplot2::ggtitle(paste0("Heatmap Gènes-Termes – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+# ----- ORA specific ----- 
+# Plot : Barplot
+# Entrée : 
+#   - enrich_obj : Objet de résultat (Uniquement ORA) // cacher/ ne pas afficher ce plot au front si l'utilisateur choisit GSEA
+#   - label : Titre du graphique
+#   - top_n : Nombre de catégories à afficher // Lier à un numeric/slider input
+# Sortie : Objet ggplot
+generate_barplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
+  p <- barplot(enrich_obj, showCategory = top_n) +
+    ggplot2::ggtitle(paste0("Barplot – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+# Plot : Goplot
+# Entrée : 
+#   - enrich_obj : Objet de résultat (Uniquement ORA) // cacher/ ne pas afficher ce plot au front si l'utilisateur choisit GSEA
+#   - label : Titre du graphique
+#   - top_n : Nombre de catégories à afficher // Lier à un numeric/slider input
+# Sortie : Objet ggplot
+generate_goplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
+  p <- goplot(enrich_obj, showCategory = top_n) +
+    ggplot2::ggtitle(paste0("Barplot – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+
+# ----- GSEA specific ----- 
+# Plot : Ridgeplot
+# Entrée : 
+#   - gse_obj : Objet de résultat (Uniquement GSEA) // Afficher uniquement si l'utilisateur choisit GSEA
+#   - label : Titre du graphique
+#   - top_n : Nombre de catégories à afficher
+# Sortie : Objet ggplot
+generate_ridgeplot <- function(gse_obj, label = 'GSEA', top_n = 10) {
+  p <- enrichplot::ridgeplot(gse_obj, showCategory = top_n) +
+    ggplot2::ggtitle(paste0("Ridgeplot (Distribution log2FC) – ", label)) +
+    ggplot2::theme_minimal()
+  return(p)
+}
+
+
+# Plot : GSEA Plot (Type 2 - Multiples pathways)
+# Entrée : 
+#   - gse_obj : Objet de résultat (Uniquement GSEA) // Afficher uniquement si l'utilisateur choisit GSEA
+#   - gene_set_ids : Vecteur d'indices des pathways à afficher (ex: 1:3 pour les 3 premiers) // Lier à une sélection multiple au front
+#   - show_pvalue : Afficher ou non la table des p-values // Lier à une checkbox au front
+# Sortie : Objet ggplot complexe
+generate_gseaplot2 <- function(gse_obj, gene_set_ids = 1:3, show_pvalue = TRUE) {
+  p <- enrichplot::gseaplot2(gse_obj, 
+                             geneSetID = gene_set_ids, 
+                             pvalue_table = show_pvalue)
+  return(p)
+}
+
+
+# Plot : GSEA Rank
+# Entrée : 
+#   - gse_obj : Objet de résultat (Uniquement GSEA) // Afficher uniquement si l'utilisateur choisit GSEA
+#   - gene_set_id : Index du pathway spécifique à afficher (un seul) // Lier à un input numérique ou un menu déroulant
+# Sortie : Objet ggplot
+generate_gsearank <- function(gse_obj, gene_set_id = 1) {
+  # Récupère le nom dynamique du pathway pour le titre
+  pathway_title <- gse_obj[gene_set_id, "Description"]
   
-  p_upset <- enrichplot::upsetplot(gse_obj) +
-    ggtitle(paste0("Upset Plot GSEA – ", label))
+  p <- enrichplot::gsearank(gse_obj, geneSetID = gene_set_id, title = pathway_title)
+  return(p)
+}
+
+
+
+
+# ----- Custom MAnhattan plot ----- 
+
+# Plot : Manhattan Plot personnalisé
+# Entrée : 
+#   - enrich_list : Une liste nommée d'objets d'enrichissement (ex: list("GO-BP" = res$BP, "KEGG" = res_kegg)) // Le front doit assembler les résultats sélectionnés dans une liste nommée avant d'appeler la fonction
+#   - label : Titre du graphique
+#   - p_cutoff : Seuil pour tracer la ligne de significativité # // Lier à l'input utilisateur "p_cutoff"
+#   - cap_y : Valeur maximale pour tronquer l'axe Y (ex: 15) pour éviter que les p-values extrêmes n'écrasent le plot // Optionnel, lier à un numeric input "Y max" ou laisser NULL
+# Sortie : Objet ggplot
+generate_manhattan_plot <- function(enrich_list, label = "Enrichissement Global", p_cutoff = 0.05, cap_y = NULL) {
   
-  p_cnet <- enrichplot::cnetplot(gse_obj, 
-                                 showCategory = 5, 
-                                 circular = FALSE, 
-                                 colorEdge = TRUE) +
-    ggtitle(paste0("Réseau Gènes-Concepts – ", label))
+  # 1. Extraction et combinaison des données de la liste
+  df_list <- lapply(names(enrich_list), function(source_name) {
+    obj <- enrich_list[[source_name]]
+    if (is.null(obj)) return(NULL)
+    
+    # Convertir l'objet endata.frame classique
+    df <- as.data.frame(obj)
+    if (nrow(df) == 0) return(NULL)
+    
+    df$Source <- source_name
+    df$logP <- -log10(df$p.adjust)
+    
+    # Gérer la taille des points (Count pour ORA, setSize pour GSEA)
+    if ("Count" %in% colnames(df)) {
+      df$Size <- as.numeric(df$Count)
+    } else if ("setSize" %in% colnames(df)) {
+      df$Size <- as.numeric(df$setSize)
+    } else {
+      df$Size <- 1 # Sécurité
+    }
+    
+    return(df)
+  })
   
-  gse_sim <- enrichplot::pairwise_termsim(gse_obj)
-  p_emap <- enrichplot::emapplot(gse_sim, showCategory = top_n) +
-    ggtitle(paste0("Carte de similarité (Emap) – ", label))
+  # Fusionner la liste en un seul data.frame
+  plot_data <- dplyr::bind_rows(df_list)
   
-  p_gsea <- enrichplot::gseaplot(gse_obj, 
-                                 geneSetID = 1, 
-                                 by = "all", 
-                                 title = gse_obj$Description[1])
+  if (nrow(plot_data) == 0) {
+    warning("Aucun résultat significatif à afficher pour le Manhattan Plot.")
+    return(ggplot2::ggplot() + ggplot2::ggtitle(paste0("Aucun résultat - ", label)) + ggplot2::theme_void())
+  }
   
-  p_heat <- enrichplot::heatplot(gse_obj, showCategory = top_n) +
-    ggtitle(paste0("Heatmap Gènes-Termes – ", label))
+  # 2. Préparation des axes (Création de l'index X artificiel)
+  plot_data <- plot_data %>%
+    dplyr::arrange(Source, dplyr::desc(logP)) %>%
+    dplyr::mutate(Index = dplyr::row_number())
   
-  p_gsea2 <- enrichplot::gseaplot2(gse_obj, 
-                                   geneSetID = 1:3, 
-                                   pvalue_table = TRUE)
+  # Plafonner (cap) les valeurs Y extrêmes si demandé par l'utilisateur
+  if (!is.null(cap_y)) {
+    plot_data$logP <- ifelse(plot_data$logP > cap_y, cap_y, plot_data$logP)
+  }
   
-  p_rank <- enrichplot::gsearank(gse_obj, 1, title = gse_obj[1, "Description"])
+  # Calculer le centre de chaque groupe pour placer les étiquettes sur l'axe X
+  axis_data <- plot_data %>%
+    dplyr::group_by(Source) %>%
+    dplyr::summarize(Center = mean(Index), N = dplyr::n(), .groups = 'drop') %>%
+    dplyr::mutate(Label = paste0(Source, "\n(", N, ")"))
   
-  p_ridge <- enrichplot::ridgeplot(gse_obj, showCategory = top_n) +
-    ggtitle(paste0("Ridgeplot (Distribution log2FC) – ", label)) +
-    theme_minimal()
+  # Calculer la position de la ligne de seuil
+  sig_line <- -log10(p_cutoff)
   
-  result = list(
-    Dotplot = p_dot,
-    Upsetplot = p_upset,
-    Cnetplot = p_cnet,
-    Emapplot = p_emap,
-    Heatplot = p_heat,
-    Gseaplot = p_gsea,
-    Gseaplot2 = p_gsea2,
-    Gsearank = p_rank,
-    Ridgeplot = p_ridge
-  )
+  # 3. Création du graphique avec ggplot2
+  p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = Index, y = logP, color = Source, size = Size)) +
+    ggplot2::geom_point(alpha = 0.8) +
+    
+    # Ligne de seuil de significativité
+    ggplot2::geom_hline(yintercept = sig_line, linetype = "dashed", color = "grey50") +
+    
+    # Personnalisation des axes
+    ggplot2::scale_x_continuous(breaks = axis_data$Center, labels = axis_data$Label) +
+    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") + # Empêche la légende de taille de surcharger le plot
+    
+    # Labels et thèmes
+    ggplot2::labs(
+      title = paste0("Manhattan Plot – ", label),
+      x = "",
+      y = expression("-log"[10]*"(p.adjust)"),
+      color = "Base de données"
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5, vjust = 1, face = "bold"),
+      panel.grid.major.x = ggplot2::element_blank(), # Retire la grille verticale pour un effet GWAS
+      panel.grid.minor.x = ggplot2::element_blank(),
+      legend.position = "right"
+    )
   
-  return(result)
+  # Ajouter une note visuelle si les valeurs ont été tronquées (cappées)
+  if (!is.null(cap_y)) {
+    p <- p + ggplot2::annotate("text", x = max(plot_data$Index), y = cap_y + 0.2,
+                               label = "Valeurs plafonnées", hjust = 1, size = 3.5, color = "grey30")
+  }
+  
+  return(p)
 }
