@@ -1,12 +1,18 @@
 taches : 
 - création enrichGO : done
 - creation plot enrichissement : done 
-- creation avec ggplot d'un Manhattan plot :
-- Ajouter un chargement avec un gif pour les temps d'attente : 
-- mettre au propre la mise en page de ORA
-- réaliser la enrichKEGG ORA : 
+- creation avec ggplot d'un Manhattan plot : done 
+- Ajouter un chargement avec un gif pour les temps d'attente : done
+- mettre au propre la mise en page de ORA : 
+- réaliser la enrichKEGG ORA : done
 - Réaliser enrichKEGG GSEA : done
 - Réaliser enrichGO GSEA : done
 - Mettre au propre les erreurs de plot : 
 - Ajouter les sous menues dans enrichissement ORA/GSEA : 
 - Ajouter une page par défaut dans enrichissement (mettre un tuto utilisation enrichissement) : 
+- Ajouter dans le README comment charger le renv :
+- Mettre en place une UI pour toutes les fonctions, adapter les box avec les bons noms :
+- Créer un tutoriel :
+- Créer un Docker : 
+- 
+
