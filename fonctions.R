@@ -120,6 +120,44 @@ plot_volcano <- function(data,
 
 # ========================== Enrichissement ========================== 
 
+# ---- Convertion ID ----
+
+# Pour ORA
+convert_symbols_to_entrez <- function(symbols, org_db) {
+  converted <- tryCatch(
+    clusterProfiler::bitr(symbols,
+                          fromType = "SYMBOL",
+                          toType   = "ENTREZID",
+                          OrgDb    = org_db,
+                          drop     = TRUE),
+    error = function(e) NULL
+  )
+  if (is.null(converted) || nrow(converted) == 0) return(NULL)
+  converted$ENTREZID
+}
+
+# Pour GSEA - Conserve le ranking
+convert_ranked_to_entrez <- function(ranked_gene_list, org_db) {
+  symbols <- names(ranked_gene_list)
+  mapping <- tryCatch(
+    clusterProfiler::bitr(symbols,
+                          fromType = "SYMBOL",
+                          toType   = "ENTREZID",
+                          OrgDb    = org_db,
+                          drop     = TRUE),
+    error = function(e) NULL
+  )
+  if (is.null(mapping) || nrow(mapping) == 0) return(NULL)
+  
+  # On crée un nouveau vecteur avec les ENTREZID comme noms
+  ranked_entrez <- ranked_gene_list[mapping$SYMBOL]
+  names(ranked_entrez) <- mapping$ENTREZID
+  
+  # Re-tri et déduplication (au cas où plusieurs SYMBOL → même ENTREZID)
+  ranked_entrez <- ranked_entrez[!duplicated(names(ranked_entrez))]
+  sort(ranked_entrez, decreasing = TRUE)
+}
+
 
 # ---- ORA -----
 
@@ -329,9 +367,7 @@ generate_dotplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
 # Sortie : Objet ggplot
 generate_cnetplot <- function(enrich_obj, label = 'Enrichissement', top_n = 5) {
   p <- enrichplot::cnetplot(enrich_obj, 
-                            showCategory = top_n, 
-                            circular = FALSE, 
-                            colorEdge = TRUE) +
+                            showCategory = top_n) +
     ggplot2::ggtitle(paste0("Réseau Gènes-Concepts – ", label)) +
     ggplot2::theme_minimal()
   return(p)
@@ -466,90 +502,152 @@ generate_gsearank <- function(gse_obj, gene_set_id = 1) {
 #   - p_cutoff : Seuil pour tracer la ligne de significativité # // Lier à l'input utilisateur "p_cutoff"
 #   - cap_y : Valeur maximale pour tronquer l'axe Y (ex: 15) pour éviter que les p-values extrêmes n'écrasent le plot // Optionnel, lier à un numeric input "Y max" ou laisser NULL
 # Sortie : Objet ggplot
-generate_manhattan_plot <- function(enrich_list, label = "Enrichissement Global", p_cutoff = 0.05, cap_y = NULL) {
+generate_manhattan_plot <- function(enrich_list,
+                                     label       = "Enrichissement fonctionnel",
+                                     p_cutoff    = 0.05,
+                                     top_n_labels = 8L,
+                                     cap_y       = NULL,
+                                     export_path = NULL,
+                                     width       = 3000L,
+                                     height      = 1600L) {
   
-  # 1. Extraction et combinaison des données de la liste
-  df_list <- lapply(names(enrich_list), function(source_name) {
-    obj <- enrich_list[[source_name]]
+  
+  # 1) Conversion de la liste d'objets enrichResult en un data.frame 
+  .extract_enrich <- function(obj, source_name) {
     if (is.null(obj)) return(NULL)
+    df <- tryCatch(as.data.frame(obj), error = function(e) NULL)
+    if (is.null(df) || nrow(df) == 0L) return(NULL)
     
-    # Convertir l'objet endata.frame classique
-    df <- as.data.frame(obj)
-    if (nrow(df) == 0) return(NULL)
+    # Colonnes obligatoires
+    p_col <- intersect(c("p.adjust", "pvalue"), colnames(df))[1]
+    if (is.na(p_col)) return(NULL)
     
-    df$Source <- source_name
-    df$logP <- -log10(df$p.adjust)
+    id_col   <- intersect(c("ID", "id"), colnames(df))[1]
+    desc_col <- intersect(c("Description", "description"), colnames(df))[1]
     
-    # Gérer la taille des points (Count pour ORA, setSize pour GSEA)
+    # Taille du gene set
     if ("Count" %in% colnames(df)) {
-      df$Size <- as.numeric(df$Count)
+      size_col <- df$Count
     } else if ("setSize" %in% colnames(df)) {
-      df$Size <- as.numeric(df$setSize)
+      size_col <- df$setSize
     } else {
-      df$Size <- 1 # Sécurité
+      size_col <- rep(1L, nrow(df))
     }
     
-    return(df)
-  })
-  
-  # Fusionner la liste en un seul data.frame
-  plot_data <- dplyr::bind_rows(df_list)
-  
-  if (nrow(plot_data) == 0) {
-    warning("Aucun résultat significatif à afficher pour le Manhattan Plot.")
-    return(ggplot2::ggplot() + ggplot2::ggtitle(paste0("Aucun résultat - ", label)) + ggplot2::theme_void())
+    data.frame(
+      term_id    = if (!is.na(id_col))   df[[id_col]]   else paste0(source_name, "_", seq_len(nrow(df))),
+      term_name  = if (!is.na(desc_col)) df[[desc_col]] else rep(NA_character_, nrow(df)),
+      category   = source_name,
+      p_adj      = as.numeric(df[[p_col]]),
+      gene_count = as.integer(size_col),
+      stringsAsFactors = FALSE
+    )
   }
   
-  # 2. Préparation des axes (Création de l'index X artificiel)
-  plot_data <- plot_data %>%
-    dplyr::arrange(Source, dplyr::desc(logP)) %>%
-    dplyr::mutate(Index = dplyr::row_number())
+  df_raw <- dplyr::bind_rows(
+    lapply(names(enrich_list), function(nm) .extract_enrich(enrich_list[[nm]], nm))
+  )
   
-  # Plafonner (cap) les valeurs Y extrêmes si demandé par l'utilisateur
-  if (!is.null(cap_y)) {
-    plot_data$logP <- ifelse(plot_data$logP > cap_y, cap_y, plot_data$logP)
+  if (is.null(df_raw) || nrow(df_raw) == 0L) {
+    warning("generate_manhattan_plot2 : aucun résultat exploitable dans enrich_list.")
+    return(invisible(NULL))
   }
   
-  # Calculer le centre de chaque groupe pour placer les étiquettes sur l'axe X
-  axis_data <- plot_data %>%
-    dplyr::group_by(Source) %>%
-    dplyr::summarize(Center = mean(Index), N = dplyr::n(), .groups = 'drop') %>%
-    dplyr::mutate(Label = paste0(Source, "\n(", N, ")"))
+  # Retirer les NA et les pvalue non finies
+  df_raw <- df_raw[!is.na(df_raw$p_adj) & is.finite(df_raw$p_adj), ]
+  if (nrow(df_raw) == 0L) {
+    warning("generate_manhattan_plot2 : toutes les p-valeurs sont NA/Inf.")
+    return(invisible(NULL))
+  }
   
-  # Calculer la position de la ligne de seuil
-  sig_line <- -log10(p_cutoff)
+  # 2) qqman (CHR = catégorie, BP = position x, P = pval)
+  categories  <- unique(df_raw$category)
+  cat_index   <- setNames(seq_along(categories), categories)
   
-  # 3. Création du graphique avec ggplot2
-  p <- ggplot2::ggplot(plot_data, ggplot2::aes(x = Index, y = logP, color = Source, size = Size)) +
-    ggplot2::geom_point(alpha = 0.8) +
-    
-    # Ligne de seuil de significativité
-    ggplot2::geom_hline(yintercept = sig_line, linetype = "dashed", color = "grey50") +
-    
-    # Personnalisation des axes
-    ggplot2::scale_x_continuous(breaks = axis_data$Center, labels = axis_data$Label) +
-    ggplot2::scale_size_continuous(range = c(2, 6), guide = "none") + # Empêche la légende de taille de surcharger le plot
-    
-    # Labels et thèmes
-    ggplot2::labs(
-      title = paste0("Manhattan Plot – ", label),
-      x = "",
-      y = expression("-log"[10]*"(p.adjust)"),
-      color = "Base de données"
-    ) +
-    ggplot2::theme_minimal() +
-    ggplot2::theme(
-      axis.text.x = ggplot2::element_text(angle = 0, hjust = 0.5, vjust = 1, face = "bold"),
-      panel.grid.major.x = ggplot2::element_blank(), # Retire la grille verticale pour un effet GWAS
-      panel.grid.minor.x = ggplot2::element_blank(),
-      legend.position = "right"
+  df_plot <- df_raw %>%
+    dplyr::arrange(factor(category, levels = categories), p_adj) %>%
+    dplyr::mutate(
+      CHR = as.integer(cat_index[category]),
+      BP  = dplyr::row_number(),
+      P   = p_adj,
+      SNP = term_id
     )
   
-  # Ajouter une note visuelle si les valeurs ont été tronquées (cappées)
   if (!is.null(cap_y)) {
-    p <- p + ggplot2::annotate("text", x = max(plot_data$Index), y = cap_y + 0.2,
-                               label = "Valeurs plafonnées", hjust = 1, size = 3.5, color = "grey30")
+    df_plot$P <- pmax(df_plot$P, 10^(-cap_y))  # tronquer par le bas (p-value très petite = logP élevé)
   }
   
-  return(p)
+  # 3) Couleurs
+  base_colors <- list(
+    c("#1A5FA8", "#5B9BD5"),   # bleu
+    c("#3B6D11", "#72B526"),   # vert
+    c("#7A4200", "#C97E1E"),   # orange
+    c("#6B2B8A", "#A855C8"),   # violet
+    c("#8A1A1A", "#D44B4B"),   # rouge
+    c("#1A6B6B", "#2ABFBF")    # cyan
+  )
+  n_cat    <- length(categories)
+  col_list <- rep(base_colors, length.out = n_cat)
+  col_vec  <- unlist(col_list[seq_len(n_cat)])  # vecteur aplati pour qqman
+  
+  # 4) Les tops termes à annoter 
+  top_snps <- df_plot %>%
+    dplyr::filter(P < p_cutoff) %>%
+    dplyr::arrange(P) %>%
+    dplyr::slice_head(n = top_n_labels) %>%
+    dplyr::pull(SNP)
+  
+  # 5) Centrer les termes des labels par catégorie existante
+  chr_labels <- df_plot %>%
+    dplyr::group_by(CHR, category) %>%
+    dplyr::summarise(center = mean(BP), .groups = "drop") %>%
+    dplyr::arrange(CHR) %>%
+    dplyr::pull(category)
+  
+  
+  # 6) Fonction interne de rendu (réutilisée pour device et export PNG)
+  .draw <- function() {
+    par(mar = c(5, 5, 4, 2))
+    
+    qqman::manhattan(
+      df_plot,
+      chr              = "CHR",
+      bp               = "BP",
+      p                = "P",
+      snp              = "SNP",
+      col              = col_vec,
+      cex              = 0.85,
+      cex.axis         = 0.85,
+      suggestiveline   = FALSE,
+      genomewideline   = -log10(p_cutoff),
+      highlight        = if (length(top_snps) > 0L) top_snps else NULL,
+      annotatePval     = p_cutoff,
+      annotateTop      = FALSE,
+      chrlabs          = chr_labels,
+      main             = paste0("Manhattan plot — ", label),
+      xlab             = "Catégorie",
+      ylab             = expression(-log[10](p[adj]))
+    )
+    
+    # Légende
+    legend_cols   <- vapply(col_list[seq_len(n_cat)], `[[`, character(1), 2)  # couleur claire de chaque cat
+    legend_labels <- c(categories, paste0("Significatif (FDR < ", p_cutoff, ")"))
+    legend_cols   <- c(legend_cols, "green3")
+    
+    legend(
+      "topright",
+      legend = legend_labels,
+      col    = legend_cols,
+      pch    = 16L,
+      pt.cex = c(rep(1.2, n_cat), 1.4),
+      bty    = "n",
+      cex    = 0.85
+    )
+    
+    if (!is.null(cap_y)) {
+      mtext(paste0("Note : axe Y tronqué à ", cap_y),
+            side = 1, line = 4, adj = 1, cex = 0.75, col = "grey40")
+    }
+  }
 }
+

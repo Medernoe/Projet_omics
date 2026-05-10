@@ -7,25 +7,53 @@
 #développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
 #==============================================================================#
 
-#=========Chargement du global.R et de shinyalter===============================
+#=========Chargement du global.R===============================================
 source("global.R")
-useShinyalert()
+
+#=========HTML du loader hamster (CSS pur)=====================================
+hamster_loader <- HTML('
+<div aria-label="Hamster loader" role="img" class="wheel-and-hamster">
+  <div class="wheel"></div>
+  <div class="hamster">
+    <div class="hamster__body">
+      <div class="hamster__head">
+        <div class="hamster__ear"></div>
+        <div class="hamster__eye"></div>
+        <div class="hamster__nose"></div>
+      </div>
+      <div class="hamster__limb hamster__limb--fr"></div>
+      <div class="hamster__limb hamster__limb--fl"></div>
+      <div class="hamster__limb hamster__limb--br"></div>
+      <div class="hamster__limb hamster__limb--bl"></div>
+      <div class="hamster__tail"></div>
+    </div>
+  </div>
+  <div class="spoke"></div>
+</div>
+')
 
 #=========================INTERFACE UTILISATEUR=================================
-
-#=============================Dashboard=========================================
 
 dashboardPage(
   
   ####============================Header==========================================
   
-  dashboardHeader(title = ""),  # Espace vide car le titre est écrit en CSS
+  # Le titre est en CSS
+  dashboardHeader(title = ""),
   
   ####===========================Sidebar==========================================
   dashboardSidebar(
     
+    ####==========================Accueil========================================
+    sidebarMenu(
+      id="menu_home",
+      menuItem("Accueil", tabName = "home", icon = icon("house"))
+    ),
+    
     #####=======================Input fichier=======================================
     fileInput("deg_file", "Choisir fichier DEG :"),
+    
+
     
     #####======================Sélection organisme==================================
     selectInput(
@@ -37,13 +65,15 @@ dashboardPage(
     
     #####===========================Menu============================================
     sidebarMenu(
-      menuItem("Accueil", tabName = "home", icon = icon("house")),
+      id = "menu_navigation",
       menuItem("DEG", tabName = "deg", icon = icon("magnifying-glass-chart")),
       
-      # Sous-menu Enrichissement
+      # Sous-menu Enrichissement (4 sous-pages)
       menuItem("Enrichissement", icon = icon("chart-column"), startExpanded = FALSE,
-               menuSubItem("ORA",  tabName = "enrichment_ora",  icon = icon("chart-bar")),
-               menuSubItem("GSEA", tabName = "enrichment_gsea", icon = icon("chart-line"))
+               menuSubItem("GO ORA",       tabName = "go_ora",       icon = icon("chart-bar")),
+               menuSubItem("GO GSEA",      tabName = "go_gsea",      icon = icon("chart-line")),
+               menuSubItem("Pathway ORA",  tabName = "pathway_ora",  icon = icon("diagram-project")),
+               menuSubItem("Pathway GSEA", tabName = "pathway_gsea", icon = icon("share-nodes"))
       ),
       
       menuItem("Documentation", tabName = "documentation", icon = icon("book-open")),
@@ -53,6 +83,10 @@ dashboardPage(
   
   #===============================Body============================================
   dashboardBody(
+    
+    ####==========================Initialisation waiter==========================
+    use_waiter(),
+    waiter_show_on_load(html = hamster_loader, color = "#009688"),
     
     ####==========================CSS externe=======================================
     tags$head(
@@ -111,8 +145,9 @@ dashboardPage(
             box(
               title = "Volcano Plot",
               width = 12,
+              status = "primary",
+              solidHeader = TRUE,
               
-              # Image d'erreur conditionnelle (affichée si pas de fichier)
               conditionalPanel(
                 condition = "output.show_volcano_error",
                 div(
@@ -123,16 +158,9 @@ dashboardPage(
                 )
               ),
               
-              # Plot conditionnel (affiché si fichier chargé)
               conditionalPanel(
                 condition = "!output.show_volcano_error",
-                withSpinner(plotlyOutput("volcano_plot", height = "500px"),
-                            type = 0,
-                            color = "#3498db",
-                            image = "sleepy-snorlax.gif",       
-                            image.width = "50%",      
-                            image.height = "50%"
-                )
+                plotlyOutput("volcano_plot", height = "500px")
               ),
               
               downloadButton("downloadVolcano", "Télécharger")
@@ -146,18 +174,24 @@ dashboardPage(
             box(
               title = "Titre",
               width = 12,
+              status = "primary",
+              solidHeader = TRUE,
               textInput("deg_title", "Entrer un titre pour la figure :")
             ),
             
             box(
               title = "ToolBox",
               width = 12,
+              status = "primary",
+              solidHeader = TRUE,
               checkboxInput("deg_toolbox", "Activer la barre d'outils", value = TRUE)
             ),
             
             box(
               title = "Seuils",
               width = 12,
+              status = "primary",
+              solidHeader = TRUE,
               sliderInput("fc_threshold", "Log2 FC :", min = 0, max = 5, value = 1, step = 0.5, width = "100%"),
               checkboxInput("show_vline", "Activer ligne verticale (logFC)", value = TRUE),
               sliderInput("pvalue_threshold", "P-value :", min = 0, max = 1, value = 0.05, width = "100%"),
@@ -171,6 +205,8 @@ dashboardPage(
           box(
             title = "Tableau des données",
             width = 12,
+            status = "primary",
+            solidHeader = TRUE,
             
             conditionalPanel(
               condition = "output.show_table_error",
@@ -188,13 +224,11 @@ dashboardPage(
         )
       ),
       
-      #####==========================ENRICHISSEMENT ORA===============================
+      #####==========================GO ORA===========================================
       tabItem(
-        tabName = "enrichment_ora",
+        tabName = "go_ora",
         
-        ######-----Bandeau du haut : 2 box de contrôle d'analyse-----
         fluidRow(
-          # Box 1 : Ontologie GO (sélection multiple)
           column(
             width = 6,
             box(
@@ -203,7 +237,7 @@ dashboardPage(
               status = "primary",
               solidHeader = TRUE,
               checkboxGroupInput(
-                inputId = "ora_go_ontology",
+                inputId = "go_ora_ontology",
                 label = NULL,
                 choices = c("Processus Biologique (BP)" = "BP",
                             "Composant Cellulaire (CC)" = "CC",
@@ -214,7 +248,6 @@ dashboardPage(
             )
           ),
           
-          # Box 2 : Bouton de lancement
           column(
             width = 6,
             box(
@@ -225,73 +258,64 @@ dashboardPage(
               div(
                 style = "text-align: center; padding: 10px;",
                 actionButton(
-                  inputId = "run_ora",
-                  label = "Lancer l'enrichissement ORA",
+                  inputId = "run_go_ora",
+                  label = "Lancer GO ORA",
                   icon = icon("play"),
-                  class = "btn-success btn-lg",
+                  class = "btn-teal btn-lg",
                   style = "width: 100%;"
                 ),
                 br(), br(),
                 div(
                   style = "font-size: 12px; color: #666; font-style: italic;",
-                  textOutput("ora_status")
+                  textOutput("go_ora_status")
                 )
               )
             )
           )
         ),
         
-        ######-----Plot + Paramètres de visualisation-----
         fluidRow(
-          
-          ########-----Colonne gauche (8/12) : Plot + contrôles d'affichage-----
           column(
             width = 8,
             
             box(
-              title = "Enrichissement Plot (ORA)",
+              title = "Enrichissement Plot (GO ORA)",
               width = 12,
-              
-              withSpinner(
-                plotlyOutput("ora_plot", height = "500px"),
-                type = 0,
-                image = "sleepy-snorlax.gif",
-                image.width = "50%",
-                image.height = "50%"
-              ),
-              
-              downloadButton("downloadOra", "Télécharger")
+              status = "primary",
+              solidHeader = TRUE,
+              plotlyOutput("go_ora_plot", height = "500px"),
+              downloadButton("downloadGoOra", "Télécharger")
             ),
             
-            # Box d'affichage en dessous (titre, toolbox)
             box(
               title = "Affichage",
               width = 12,
-              textInput("ora_title", "Titre de la figure :", placeholder = "Saisir un titre..."),
-              checkboxInput("ora_toolbox", "Activer la barre d'outils", value = TRUE)
+              status = "primary",
+              solidHeader = TRUE,
+              textInput("go_ora_title", "Titre de la figure :", placeholder = "Saisir un titre..."),
+              checkboxInput("go_ora_toolbox", "Activer la barre d'outils", value = TRUE)
             )
           ),
           
-          ########-----Colonne droite (4/12) : Paramètres du graphique-----
           column(
             width = 4,
             
             box(
               title = "Paramètres du graphique",
               width = 12,
+              status = "primary",
+              solidHeader = TRUE,
               
-              # 1. Type de visualisation (plots compatibles ORA)
               selectInput(
-                inputId = "ora_selected_plot",
+                inputId = "go_ora_selected_plot",
                 label = "Type de visualisation :",
                 choices = c("Dotplot", "Barplot", "Cnetplot", "Emapplot",
                             "Goplot", "Upsetplot", "Heatplot"),
                 selected = "Dotplot"
               ),
               
-              # 2. Ontologie à afficher (mise à jour côté server après calcul)
               selectInput(
-                inputId = "ora_displayed_ontology",
+                inputId = "go_ora_displayed_ontology",
                 label = "Ontologie à afficher :",
                 choices = c("Processus Biologique (BP)" = "BP",
                             "Composant Cellulaire (CC)" = "CC",
@@ -299,24 +323,36 @@ dashboardPage(
                 selected = "BP"
               ),
               
-              # 3. Nombre de termes GO
               sliderInput(
-                inputId = "ora_top_n_terms",
+                inputId = "go_ora_top_n_terms",
                 label = "Nombre de termes GO à afficher :",
                 min = 5, max = 50, value = 10, step = 5, width = "100%"
+              )
+            ),
+            
+            box(
+              title = "Direction des gènes",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              radioButtons(
+                inputId = "go_ora_direction",
+                label = NULL,
+                choices = c("Sur-exprimés" = "up",
+                            "Sous-exprimés" = "down",
+                            "Les deux" = "both"),
+                selected = "both"
               )
             )
           )
         )
       ),
       
-      #####==========================ENRICHISSEMENT GSEA==============================
+      #####==========================GO GSEA==========================================
       tabItem(
-        tabName = "enrichment_gsea",
+        tabName = "go_gsea",
         
-        ######-----Bandeau du haut : 2 box de contrôle d'analyse-----
         fluidRow(
-          # Box 1 : Ontologie GO (sélection multiple)
           column(
             width = 6,
             box(
@@ -325,7 +361,7 @@ dashboardPage(
               status = "primary",
               solidHeader = TRUE,
               checkboxGroupInput(
-                inputId = "gsea_go_ontology",
+                inputId = "go_gsea_ontology",
                 label = NULL,
                 choices = c("Processus Biologique (BP)" = "BP",
                             "Composant Cellulaire (CC)" = "CC",
@@ -336,7 +372,6 @@ dashboardPage(
             )
           ),
           
-          # Box 2 : Bouton de lancement
           column(
             width = 6,
             box(
@@ -347,73 +382,64 @@ dashboardPage(
               div(
                 style = "text-align: center; padding: 10px;",
                 actionButton(
-                  inputId = "run_gsea",
-                  label = "Lancer l'enrichissement GSEA",
+                  inputId = "run_go_gsea",
+                  label = "Lancer GO GSEA",
                   icon = icon("play"),
-                  class = "btn-success btn-lg",
+                  class = "btn-teal btn-lg",
                   style = "width: 100%;"
                 ),
                 br(), br(),
                 div(
                   style = "font-size: 12px; color: #666; font-style: italic;",
-                  textOutput("gsea_status")
+                  textOutput("go_gsea_status")
                 )
               )
             )
           )
         ),
         
-        ######-----Plot + Paramètres de visualisation-----
         fluidRow(
-          
-          ########-----Colonne gauche (8/12) : Plot + contrôles d'affichage-----
           column(
             width = 8,
             
             box(
-              title = "Enrichissement Plot (GSEA)",
+              title = "Enrichissement Plot (GO GSEA)",
               width = 12,
-              
-              withSpinner(
-                plotlyOutput("gsea_plot", height = "500px"),
-                type = 0,
-                image = "sleepy-snorlax.gif",
-                image.width = "50%",
-                image.height = "50%"
-              ),
-              
-              downloadButton("downloadGsea", "Télécharger")
+              status = "primary",
+              solidHeader = TRUE,
+              plotlyOutput("go_gsea_plot", height = "500px"),
+              downloadButton("downloadGoGsea", "Télécharger")
             ),
             
-            # Box d'affichage en dessous (titre, toolbox)
             box(
               title = "Affichage",
               width = 12,
-              textInput("gsea_title", "Titre de la figure :", placeholder = "Saisir un titre..."),
-              checkboxInput("gsea_toolbox", "Activer la barre d'outils", value = TRUE)
+              status = "primary",
+              solidHeader = TRUE,
+              textInput("go_gsea_title", "Titre de la figure :", placeholder = "Saisir un titre..."),
+              checkboxInput("go_gsea_toolbox", "Activer la barre d'outils", value = TRUE)
             )
           ),
           
-          ########-----Colonne droite (4/12) : Paramètres du graphique-----
           column(
             width = 4,
             
             box(
               title = "Paramètres du graphique",
               width = 12,
+              status = "primary",
+              solidHeader = TRUE,
               
-              # 1. Type de visualisation (plots compatibles GSEA)
               selectInput(
-                inputId = "gsea_selected_plot",
+                inputId = "go_gsea_selected_plot",
                 label = "Type de visualisation :",
                 choices = c("Dotplot", "Cnetplot", "Emapplot", "Upsetplot",
                             "Heatplot", "Ridgeplot", "GSEAplot2", "GSEArank"),
                 selected = "Dotplot"
               ),
               
-              # 2. Ontologie à afficher (mise à jour côté server après calcul)
               selectInput(
-                inputId = "gsea_displayed_ontology",
+                inputId = "go_gsea_displayed_ontology",
                 label = "Ontologie à afficher :",
                 choices = c("Processus Biologique (BP)" = "BP",
                             "Composant Cellulaire (CC)" = "CC",
@@ -421,11 +447,269 @@ dashboardPage(
                 selected = "BP"
               ),
               
-              # 3. Nombre de termes GO
               sliderInput(
-                inputId = "gsea_top_n_terms",
+                inputId = "go_gsea_top_n_terms",
                 label = "Nombre de termes GO à afficher :",
                 min = 5, max = 50, value = 10, step = 5, width = "100%"
+              )
+            ),
+            
+            box(
+              title = "Direction des pathways (NES)",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              radioButtons(
+                inputId = "go_gsea_direction",
+                label = NULL,
+                choices = c("Activés (NES > 0)" = "up",
+                            "Réprimés (NES < 0)" = "down",
+                            "Les deux" = "both"),
+                selected = "both"
+              )
+            )
+          )
+        )
+      ),
+      
+      #####==========================PATHWAY ORA======================================
+      tabItem(
+        tabName = "pathway_ora",
+        
+        fluidRow(
+          column(
+            width = 6,
+            box(
+              title = "Bases de données",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              checkboxGroupInput(
+                inputId = "pathway_ora_databases",
+                label = NULL,
+                choices = c("KEGG" = "KEGG",
+                            "Reactome" = "Reactome"),
+                selected = "KEGG",
+                inline = FALSE
+              )
+            )
+          ),
+          
+          column(
+            width = 6,
+            box(
+              title = "Lancer l'analyse",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              div(
+                style = "text-align: center; padding: 10px;",
+                actionButton(
+                  inputId = "run_pathway_ora",
+                  label = "Lancer Pathway ORA",
+                  icon = icon("play"),
+                  class = "btn-teal btn-lg",
+                  style = "width: 100%;"
+                ),
+                br(), br(),
+                div(
+                  style = "font-size: 12px; color: #666; font-style: italic;",
+                  textOutput("pathway_ora_status")
+                )
+              )
+            )
+          )
+        ),
+        
+        fluidRow(
+          column(
+            width = 8,
+            
+            box(
+              title = "Enrichissement Plot (Pathway ORA)",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              plotlyOutput("pathway_ora_plot", height = "500px"),
+              downloadButton("downloadPathwayOra", "Télécharger")
+            ),
+            
+            box(
+              title = "Affichage",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              textInput("pathway_ora_title", "Titre de la figure :", placeholder = "Saisir un titre..."),
+              checkboxInput("pathway_ora_toolbox", "Activer la barre d'outils", value = TRUE)
+            )
+          ),
+          
+          column(
+            width = 4,
+            
+            box(
+              title = "Paramètres du graphique",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              
+              selectInput(
+                inputId = "pathway_ora_selected_plot",
+                label = "Type de visualisation :",
+                choices = c("Dotplot", "Barplot", "Cnetplot", "Emapplot",
+                            "Upsetplot", "Heatplot"),
+                selected = "Dotplot"
+              ),
+              
+              selectInput(
+                inputId = "pathway_ora_displayed_db",
+                label = "Base de données à afficher :",
+                choices = c("KEGG" = "KEGG",
+                            "Reactome" = "Reactome"),
+                selected = "KEGG"
+              ),
+              
+              sliderInput(
+                inputId = "pathway_ora_top_n_terms",
+                label = "Nombre de pathways à afficher :",
+                min = 5, max = 50, value = 10, step = 5, width = "100%"
+              )
+            ),
+            
+            box(
+              title = "Direction des gènes",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              radioButtons(
+                inputId = "pathway_ora_direction",
+                label = NULL,
+                choices = c("Sur-exprimés" = "up",
+                            "Sous-exprimés" = "down",
+                            "Les deux" = "both"),
+                selected = "both"
+              )
+            )
+          )
+        )
+      ),
+      
+      #####==========================PATHWAY GSEA=====================================
+      tabItem(
+        tabName = "pathway_gsea",
+        
+        fluidRow(
+          column(
+            width = 6,
+            box(
+              title = "Bases de données",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              checkboxGroupInput(
+                inputId = "pathway_gsea_databases",
+                label = NULL,
+                choices = c("KEGG" = "KEGG",
+                            "Reactome" = "Reactome"),
+                selected = "KEGG",
+                inline = FALSE
+              )
+            )
+          ),
+          
+          column(
+            width = 6,
+            box(
+              title = "Lancer l'analyse",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              div(
+                style = "text-align: center; padding: 10px;",
+                actionButton(
+                  inputId = "run_pathway_gsea",
+                  label = "Lancer Pathway GSEA",
+                  icon = icon("play"),
+                  class = "btn-teal btn-lg",
+                  style = "width: 100%;"
+                ),
+                br(), br(),
+                div(
+                  style = "font-size: 12px; color: #666; font-style: italic;",
+                  textOutput("pathway_gsea_status")
+                )
+              )
+            )
+          )
+        ),
+        
+        fluidRow(
+          column(
+            width = 8,
+            
+            box(
+              title = "Enrichissement Plot (Pathway GSEA)",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              plotlyOutput("pathway_gsea_plot", height = "500px"),
+              downloadButton("downloadPathwayGsea", "Télécharger")
+            ),
+            
+            box(
+              title = "Affichage",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              textInput("pathway_gsea_title", "Titre de la figure :", placeholder = "Saisir un titre..."),
+              checkboxInput("pathway_gsea_toolbox", "Activer la barre d'outils", value = TRUE)
+            )
+          ),
+          
+          column(
+            width = 4,
+            
+            box(
+              title = "Paramètres du graphique",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              
+              selectInput(
+                inputId = "pathway_gsea_selected_plot",
+                label = "Type de visualisation :",
+                choices = c("Dotplot", "Cnetplot", "Emapplot", "Upsetplot",
+                            "Heatplot", "Ridgeplot", "GSEAplot2", "GSEArank"),
+                selected = "Dotplot"
+              ),
+              
+              selectInput(
+                inputId = "pathway_gsea_displayed_db",
+                label = "Base de données à afficher :",
+                choices = c("KEGG" = "KEGG",
+                            "Reactome" = "Reactome"),
+                selected = "KEGG"
+              ),
+              
+              sliderInput(
+                inputId = "pathway_gsea_top_n_terms",
+                label = "Nombre de pathways à afficher :",
+                min = 5, max = 50, value = 10, step = 5, width = "100%"
+              )
+            ),
+            
+            box(
+              title = "Direction des pathways (NES)",
+              width = 12,
+              status = "primary",
+              solidHeader = TRUE,
+              radioButtons(
+                inputId = "pathway_gsea_direction",
+                label = NULL,
+                choices = c("Activés (NES > 0)" = "up",
+                            "Réprimés (NES < 0)" = "down",
+                            "Les deux" = "both"),
+                selected = "both"
               )
             )
           )
@@ -445,6 +729,8 @@ dashboardPage(
           box(
             title = "À propos du projet",
             width = 12,
+            status = "primary",
+            solidHeader = TRUE,
             includeHTML("www/about.html")
           )
         )

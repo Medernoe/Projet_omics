@@ -1,7 +1,6 @@
 library(shiny)
 library(shinydashboard)
 library(waiter)
-library(shinycssloaders)
 library(ggplot2)
 library(DT)
 library(plotly)

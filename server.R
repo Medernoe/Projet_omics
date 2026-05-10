@@ -16,6 +16,12 @@ source("global.R")
 
 function(input, output, session) {
   
+  ####============================INITIALISATION================================
+  
+  # Cache le loader hamster une fois l'app prête
+  waiter::waiter_hide()
+  
+  
   ####============================CHARGEMENT DES DONNÉES========================
   
   # Colonnes minimales requises dans le CSV uploadé
@@ -25,7 +31,6 @@ function(input, output, session) {
   raw_data <- reactive({
     req(input$deg_file)
     
-    # Vérification de l'extension du fichier
     ext <- tools::file_ext(input$deg_file$name)
     if (tolower(ext) != "csv") {
       shinyalert(
@@ -36,7 +41,6 @@ function(input, output, session) {
       return(NULL)
     }
     
-    # Lecture sécurisée du CSV (séparateur ;)
     df <- tryCatch(
       read.csv(input$deg_file$datapath, sep = ";"),
       error = function(e) {
@@ -51,7 +55,6 @@ function(input, output, session) {
     
     if (is.null(df)) return(NULL)
     
-    # Vérification des colonnes obligatoires
     if (!all(required_columns %in% colnames(df))) {
       shinyalert(
         title = "Colonnes manquantes",
@@ -68,13 +71,10 @@ function(input, output, session) {
   })
   
   #####=======================Debounce des sliders==============================
-  # Évite que le calcul se relance à chaque pixel quand l'utilisateur fait 
-  # glisser un slider (latence de 300 ms)
   fc_threshold_debounced     <- debounce(reactive(input$fc_threshold), 300)
   pvalue_threshold_debounced <- debounce(reactive(input$pvalue_threshold), 300)
   
   #####=======================Classification des gènes==========================
-  # Ajoute une colonne "Significance" : Upregulated / Downregulated / Not significant
   processed_data <- reactive({
     if (is.null(raw_data())) return(NULL)
     
@@ -85,25 +85,51 @@ function(input, output, session) {
     )
   })
   
-  #####=========================MAPPING ESPÈCE -> ORG.DB========================
-  # Table de correspondance entre le nom de l'espèce affiché côté UI
-  # et l'objet OrgDb à passer à clusterProfiler
+  #####=========================MAPPING ESPÈCE -> BASES=========================
+  
+  # OrgDb pour GO (clusterProfiler::enrichGO/gseGO)
   species_to_orgdb <- list(
     "Homo sapiens"            = org.Hs.eg.db::org.Hs.eg.db,
     "Mus musculus"            = org.Mm.eg.db::org.Mm.eg.db,
     "Drosophila melanogaster" = org.Dm.eg.db::org.Dm.eg.db
   )
   
+  # Codes KEGG (clusterProfiler::enrichKEGG/gseKEGG)
+  species_to_kegg <- c(
+    "Homo sapiens"            = "hsa",
+    "Mus musculus"            = "mmu",
+    "Drosophila melanogaster" = "dme"
+  )
+  
+  # Codes Reactome (ReactomePA::enrichPathway/gsePathway)
+  species_to_reactome <- c(
+    "Homo sapiens"            = "human",
+    "Mus musculus"            = "mouse",
+    "Drosophila melanogaster" = "fly"
+  )
+  
+  #####=======================Sélection des gènes par direction=================
+  # Filtre les gènes selon la direction (up / down / both)
+  get_directional_genes <- function(df, direction) {
+    df_sig <- df[as.character(df$Significance) != "Not significant", ]
+    
+    if (direction == "up") {
+      return(df_sig$GeneName[as.character(df_sig$Significance) == "Upregulated"])
+    } else if (direction == "down") {
+      return(df_sig$GeneName[as.character(df_sig$Significance) == "Downregulated"])
+    }
+    df_sig$GeneName
+  }
+  
   
   ####============================ONGLET DEG====================================
   
   #####=======================Volcano plot======================================
   
-  # Génère l'objet ggplot du volcano (utilisé par le rendu et le download)
   create_volcano <- reactive({
     req(processed_data())
     
-    selected_row <- input$deg_table_rows_selected  # ligne cliquée dans le tableau
+    selected_row <- input$deg_table_rows_selected
     
     plot_volcano(
       data          = processed_data(),
@@ -116,13 +142,11 @@ function(input, output, session) {
     )
   })
   
-  # Affiche l'image d'erreur si pas de fichier chargé
   output$show_volcano_error <- reactive({
     is.null(input$deg_file) || is.null(raw_data())
   })
   outputOptions(output, "show_volcano_error", suspendWhenHidden = FALSE)
   
-  # Image affichée tant qu'aucun fichier n'est chargé
   output$volcano_error_img <- renderImage({
     list(
       src         = "www/erreur_format.jpg",
@@ -133,29 +157,22 @@ function(input, output, session) {
     )
   }, deleteFile = FALSE)
   
-  # Rendu interactif du volcano plot (ggplot -> plotly)
   output$volcano_plot <- renderPlotly({
     req(input$deg_file)
     
     ggplotly(create_volcano(), tooltip = c("x", "y", "colour")) %>%
-      layout(
-        dragmode   = "zoom",
-        hovermode  = "closest"
-      ) %>%
+      layout(dragmode = "zoom", hovermode = "closest") %>%
       config(
         displayModeBar         = input$deg_toolbox,
         modeBarButtonsToAdd    = list("drawrect", "eraseshape"),
         modeBarButtonsToRemove = list("toImage"),
         displaylogo            = FALSE
       ) %>%
-      plotly::toWebGL()  # WebGL pour gérer les milliers de points
+      plotly::toWebGL()
   })
   
-  # Téléchargement du volcano plot en PNG
   output$downloadVolcano <- downloadHandler(
-    filename = function() {
-      paste0("Volcano_plot_", Sys.Date(), ".png")
-    },
+    filename = function() paste0("Volcano_plot_", Sys.Date(), ".png"),
     content = function(file) {
       ggsave(file, plot = create_volcano(), width = 12, height = 8, dpi = 300)
     }
@@ -163,7 +180,6 @@ function(input, output, session) {
   
   #####=======================Tableau des données===============================
   
-  # Affiche le message d'erreur si pas de fichier chargé
   output$show_table_error <- reactive({
     is.null(input$deg_file) || is.null(raw_data())
   })
@@ -173,7 +189,6 @@ function(input, output, session) {
     "Veuillez charger un fichier CSV au format attendu pour explorer les données"
   })
   
-  # Tableau interactif DataTables
   output$deg_table <- renderDT({
     req(processed_data())
     
@@ -189,58 +204,63 @@ function(input, output, session) {
     )
   })
   
-  
-  ####============================ONGLET ENRICHISSEMENT ORA=====================
-  
-  #####=======================Calcul ORA========================================
-  
-  # eventReactive : ne se déclenche QUE quand l'utilisateur clique sur le bouton.
-  # Le résultat est ensuite mis en cache : changer l'ontologie affichée ou le
-  # type de plot ne relance PAS le calcul.
-  ora_results <- eventReactive(input$run_ora, {
-    
+  #####=======================Préparation du ranking GSEA======================
+  # Construit le vecteur ranked utilisé par toutes les analyses GSEA
+  gsea_ranked <- reactive({
     req(processed_data())
-    req(length(input$ora_go_ontology) > 0)
     
     df <- processed_data()
-    significant_genes <- df$GeneName[as.character(df$Significance) != "Not significant"]
+    df <- df[!is.na(df$log2FC) & !is.na(df$GeneName), ]
+    df <- df[order(-abs(df$log2FC)), ]
+    df <- df[!duplicated(df$GeneName), ]
+    
+    ranked <- df$log2FC
+    names(ranked) <- df$GeneName
+    sort(ranked, decreasing = TRUE)
+  })
+  
+  
+  ####============================ONGLET GO ORA=================================
+  
+  #####=======================Calcul GO ORA====================================
+  
+  go_ora_results <- eventReactive(input$run_go_ora, {
+    
+    req(processed_data())
+    req(length(input$go_ora_ontology) > 0)
+    
+    df <- processed_data()
+    significant_genes <- get_directional_genes(df, input$go_ora_direction)
     
     if (length(significant_genes) == 0) {
       shinyalert(
         title = "Aucun gène significatif",
-        text  = "Aucun gène ne passe les seuils actuels. Ajustez les seuils logFC/p-value et relancez.",
+        text  = paste0("Aucun gène ne correspond à la direction sélectionnée (",
+                       input$go_ora_direction, "). Ajustez les seuils ou la direction."),
         type  = "warning"
       )
       return(NULL)
     }
     
-    # Récupération de l'OrgDb correspondant à l'espèce sélectionnée
     org_db <- species_to_orgdb[[input$species]]
-    
     if (is.null(org_db)) {
-      shinyalert(
-        title = "Espèce non supportée",
-        text  = paste0("Aucune base d'annotation disponible pour : ", input$species),
-        type  = "error"
-      )
+      shinyalert(title = "Espèce non supportée",
+                 text  = paste0("Aucune base GO pour : ", input$species),
+                 type  = "error")
       return(NULL)
     }
     
     showNotification(
-      paste0("Calcul ORA en cours sur ", length(input$ora_go_ontology), 
-             " ontologie(s)..."),
-      duration = NULL,
-      id       = "ora_running",
-      type     = "message"
+      paste0("Calcul GO ORA en cours sur ", length(input$go_ora_ontology), " ontologie(s)..."),
+      duration = NULL, id = "go_ora_running", type = "message"
     )
     
-    # Lancement du calcul
     ego_list <- tryCatch(
       run_ORA_go(
         gene_list = significant_genes,
-        label     = "Enrichissement",
+        label     = "GO ORA",
         org_db    = org_db,
-        ontology  = input$ora_go_ontology,
+        ontology  = input$go_ora_ontology,
         p_adj     = "BH",
         p_cutoff  = 0.05,
         key_type  = "SYMBOL"
@@ -248,112 +268,83 @@ function(input, output, session) {
       error = function(e) NULL
     )
     
-    removeNotification("ora_running")
+    removeNotification("go_ora_running")
     
-    # Vérification que le calcul a réussi
     if (is.null(ego_list)) {
+      shinyalert(title = "Erreur de calcul", type = "error")
+      return(NULL)
+    }
+    
+    valid <- !sapply(ego_list, is.null)
+    if (!any(valid)) {
       shinyalert(
-        title = "Erreur de calcul",
-        text  = "Le calcul ORA a échoué. Vérifiez l'espèce et le format des gènes.",
+        title = "Aucun gène mappé",
+        text  = paste0("Vérifiez que l'espèce '", input$species, 
+                       "' correspond bien à vos identifiants."),
         type  = "error"
       )
       return(NULL)
     }
     
-    valid_results <- !sapply(ego_list, is.null)
-    
-    if (!any(valid_results)) {
-      shinyalert(
-        title = "Aucun gène mappé",
-        text  = paste0(
-          "Aucun de vos gènes n'a pu être mappé à la base d'annotation ",
-          "pour l'espèce '", input$species, "'.\n\n",
-          "Vérifiez que l'espèce sélectionnée correspond bien à vos données ",
-          "et que vos identifiants sont des symboles (ex: TP53, BRCA1)."
-        ),
-        type = "error"
-      )
-      return(NULL)
-    }
-    
-    # Si certaines ontologies ont échoué, on les retire de la liste
-    if (!all(valid_results)) {
-      failed <- names(ego_list)[!valid_results]
+    if (!all(valid)) {
       showNotification(
-        paste0("Avertissement : aucun résultat pour ", paste(failed, collapse = ", ")),
-        duration = 6,
-        type     = "warning"
+        paste0("Aucun résultat pour : ", paste(names(valid)[!valid], collapse = ", ")),
+        duration = 6, type = "warning"
       )
     }
     
-    showNotification("Calcul ORA terminé", duration = 4, type = "message")
-    
-    ego_list[valid_results]
+    showNotification("Calcul GO ORA terminé", duration = 4, type = "message")
+    ego_list[valid]
   })
   
-  #####=======================Mise à jour du sélecteur d'ontologie ORA==========
+  #####=======================Update sélecteur ontologie GO ORA===============
   
-  # Après chaque calcul ORA, on restreint le selectInput aux ontologies calculées
-  observeEvent(ora_results(), {
-    req(ora_results())
-    available <- names(ora_results())
+  observeEvent(go_ora_results(), {
+    req(go_ora_results())
+    available <- names(go_ora_results())
     
-    labels_map <- c(
-      "BP" = "Processus Biologique (BP)",
-      "CC" = "Composant Cellulaire (CC)",
-      "MF" = "Fonction Moléculaire (MF)"
-    )
+    labels_map <- c("BP" = "Processus Biologique (BP)",
+                    "CC" = "Composant Cellulaire (CC)",
+                    "MF" = "Fonction Moléculaire (MF)")
     
     choices <- setNames(available, labels_map[available])
     
-    updateSelectInput(
-      session,
-      inputId  = "ora_displayed_ontology",
-      choices  = choices,
-      selected = available[1]
-    )
+    updateSelectInput(session, "go_ora_displayed_ontology",
+                      choices = choices, selected = available[1])
   })
   
-  #####=======================Rendu du plot ORA================================
+  #####=======================Plot GO ORA======================================
   
-  output$ora_plot <- renderPlotly({
+  output$go_ora_plot <- renderPlotly({
     
-    # Cas 1 : pas encore lancé -> plot vide avec message
-    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_ora == 0) {
+    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_go_ora == 0) {
       return(
         plotly_empty(type = "scatter", mode = "markers") %>%
           layout(
             xaxis = list(visible = FALSE),
             yaxis = list(visible = FALSE),
-            annotations = list(
-              list(
-                text = "Sélectionnez la ou les ontologie(s) puis cliquez sur « Lancer l'enrichissement ORA »",
-                showarrow = FALSE,
-                font = list(size = 16, color = "#666")
-              )
-            )
+            annotations = list(list(
+              text = "Sélectionnez la ou les ontologie(s) puis cliquez sur « Lancer GO ORA »",
+              showarrow = FALSE,
+              font = list(size = 16, color = "#666")
+            ))
           )
       )
     }
     
-    # Cas 2 : calcul lancé -> on récupère l'ego de l'ontologie affichée
-    req(ora_results())
-    req(input$ora_displayed_ontology)
+    req(go_ora_results())
+    req(input$go_ora_displayed_ontology)
     
-    ego <- ora_results()[[input$ora_displayed_ontology]]
+    ego <- go_ora_results()[[input$go_ora_displayed_ontology]]
     if (is.null(ego)) return(NULL)
     
-    # Titre : celui saisi par l'utilisateur, sinon un titre par défaut
-    label <- if (is.null(input$ora_title) || input$ora_title == "") {
-      paste0("Enrichissement GO-", input$ora_displayed_ontology)
-    } else {
-      input$ora_title
-    }
+    label <- if (is.null(input$go_ora_title) || input$go_ora_title == "") {
+      paste0("GO ORA - ", input$go_ora_displayed_ontology)
+    } else input$go_ora_title
     
-    top_n <- input$ora_top_n_terms
+    top_n <- input$go_ora_top_n_terms
     
-    # Génère uniquement le plot demandé (plus rapide qu'une liste complète)
-    selected_plot <- switch(input$ora_selected_plot,
+    selected_plot <- switch(input$go_ora_selected_plot,
                             "Dotplot"   = generate_dotplot(ego, label = label, top_n = top_n),
                             "Barplot"   = generate_barplot(ego, label = label, top_n = top_n),
                             "Cnetplot"  = generate_cnetplot(ego, label = label, top_n = top_n),
@@ -367,43 +358,32 @@ function(input, output, session) {
     
     ggplotly(selected_plot, tooltip = c("x", "y", "text")) %>%
       layout(dragmode = "zoom", hovermode = "closest") %>%
-      config(
-        displayModeBar = input$ora_toolbox,
-        modeBarButtonsToRemove = list("toImage"),
-        displaylogo = FALSE
-      ) %>%
+      config(displayModeBar = input$go_ora_toolbox,
+             modeBarButtonsToRemove = list("toImage"),
+             displaylogo = FALSE) %>%
       plotly::toWebGL()
   })
   
-  #####=======================Statut affiché sous le bouton ORA================
-  
-  output$ora_status <- renderText({
-    if (input$run_ora == 0) return("")
-    
-    results <- ora_results()
+  output$go_ora_status <- renderText({
+    if (input$run_go_ora == 0) return("")
+    results <- go_ora_results()
     if (is.null(results)) return("Aucun résultat disponible")
-    
-    n_ont <- length(results)
-    paste0("Calcul terminé (", n_ont, " ontologie(s))")
+    paste0("Calcul terminé (", length(results), " ontologie(s))")
   })
   
-  #####=======================Téléchargement du plot ORA=======================
-  
-  output$downloadOra <- downloadHandler(
+  output$downloadGoOra <- downloadHandler(
     filename = function() {
-      paste0("Enrichissement_ORA_", input$ora_selected_plot, "_", 
-             input$ora_displayed_ontology, "_", Sys.Date(), ".png")
+      paste0("GO_ORA_", input$go_ora_selected_plot, "_",
+             input$go_ora_displayed_ontology, "_", Sys.Date(), ".png")
     },
     content = function(file) {
-      ego <- ora_results()[[input$ora_displayed_ontology]]
-      label <- if (is.null(input$ora_title) || input$ora_title == "") {
-        paste0("Enrichissement GO-", input$ora_displayed_ontology)
-      } else {
-        input$ora_title
-      }
-      top_n <- input$ora_top_n_terms
+      ego <- go_ora_results()[[input$go_ora_displayed_ontology]]
+      label <- if (is.null(input$go_ora_title) || input$go_ora_title == "") {
+        paste0("GO ORA - ", input$go_ora_displayed_ontology)
+      } else input$go_ora_title
+      top_n <- input$go_ora_top_n_terms
       
-      selected_plot <- switch(input$ora_selected_plot,
+      selected_plot <- switch(input$go_ora_selected_plot,
                               "Dotplot"   = generate_dotplot(ego, label = label, top_n = top_n),
                               "Barplot"   = generate_barplot(ego, label = label, top_n = top_n),
                               "Cnetplot"  = generate_cnetplot(ego, label = label, top_n = top_n),
@@ -412,78 +392,44 @@ function(input, output, session) {
                               "Upsetplot" = generate_upsetplot(ego, label = label),
                               "Heatplot"  = generate_heatplot(ego, label = label, top_n = top_n)
       )
-      
       ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
     }
   )
   
   
-  ####============================ONGLET ENRICHISSEMENT GSEA====================
+  ####============================ONGLET GO GSEA================================
   
-  #####=======================Préparation du ranking GSEA======================
+  #####=======================Calcul GO GSEA===================================
   
-  # GSEA prend un vecteur numérique nommé, trié décroissant 
-  # (noms = gènes, valeurs = log2FC)
-  gsea_ranked <- reactive({
-    req(processed_data())
-    
-    df <- processed_data()
-    
-    # Retirer NA et dédupliquer (garder le |log2FC| max par gène)
-    df <- df[!is.na(df$log2FC) & !is.na(df$GeneName), ]
-    df <- df[order(-abs(df$log2FC)), ]
-    df <- df[!duplicated(df$GeneName), ]
-    
-    ranked <- df$log2FC
-    names(ranked) <- df$GeneName
-    sort(ranked, decreasing = TRUE)
-  })
-  
-  #####=======================Calcul GSEA======================================
-  
-  gsea_results <- eventReactive(input$run_gsea, {
+  go_gsea_results <- eventReactive(input$run_go_gsea, {
     
     req(processed_data())
-    req(length(input$gsea_go_ontology) > 0)
+    req(length(input$go_gsea_ontology) > 0)
     
     ranked <- gsea_ranked()
-    
     if (length(ranked) == 0) {
-      shinyalert(
-        title = "Aucun gène valide",
-        text  = "Aucun gène valide pour construire le ranking GSEA.",
-        type  = "warning"
-      )
+      shinyalert(title = "Aucun gène valide", type = "warning")
       return(NULL)
     }
     
-    # Récupération de l'OrgDb correspondant à l'espèce sélectionnée
     org_db <- species_to_orgdb[[input$species]]
-    
     if (is.null(org_db)) {
-      shinyalert(
-        title = "Espèce non supportée",
-        text  = paste0("Aucune base d'annotation disponible pour : ", input$species),
-        type  = "error"
-      )
+      shinyalert(title = "Espèce non supportée", type = "error")
       return(NULL)
     }
     
     showNotification(
-      paste0("Calcul GSEA en cours sur ", length(input$gsea_go_ontology), 
+      paste0("Calcul GO GSEA en cours sur ", length(input$go_gsea_ontology), 
              " ontologie(s)... Peut prendre plusieurs minutes."),
-      duration = NULL,
-      id       = "gsea_running",
-      type     = "message"
+      duration = NULL, id = "go_gsea_running", type = "message"
     )
     
-    # Lancement du calcul GSEA
     gse_list <- tryCatch(
       run_gsea_go(
         ranked_gene_list = ranked,
-        label            = "GSEA",
+        label            = "GO GSEA",
         org_db           = org_db,
-        ontology         = input$gsea_go_ontology,
+        ontology         = input$go_gsea_ontology,
         p_adj            = "BH",
         p_cutoff         = 0.05,
         key_type         = "SYMBOL"
@@ -491,104 +437,106 @@ function(input, output, session) {
       error = function(e) NULL
     )
     
-    removeNotification("gsea_running")
+    removeNotification("go_gsea_running")
     
     if (is.null(gse_list)) {
-      shinyalert(
-        title = "Erreur de calcul",
-        text  = "Le calcul GSEA a échoué. Vérifiez l'espèce et le format des gènes.",
-        type  = "error"
-      )
+      shinyalert(title = "Erreur de calcul", type = "error")
       return(NULL)
     }
     
-    # Filtrage des ontologies vides (aucun terme enrichi)
-    valid_results <- sapply(gse_list, function(g) !is.null(g) && nrow(as.data.frame(g)) > 0)
-    
-    if (!any(valid_results)) {
-      shinyalert(
-        title = "Aucun terme enrichi",
-        text  = "Aucun terme GO n'est significativement enrichi avec ces paramètres.",
-        type  = "warning"
-      )
+    valid <- sapply(gse_list, function(g) !is.null(g) && nrow(as.data.frame(g)) > 0)
+    if (!any(valid)) {
+      shinyalert(title = "Aucun terme enrichi", type = "warning")
       return(NULL)
     }
     
-    if (!all(valid_results)) {
-      failed <- names(gse_list)[!valid_results]
+    if (!all(valid)) {
       showNotification(
-        paste0("Avertissement : aucun résultat pour ", paste(failed, collapse = ", ")),
-        duration = 6,
-        type     = "warning"
+        paste0("Aucun résultat pour : ", paste(names(valid)[!valid], collapse = ", ")),
+        duration = 6, type = "warning"
       )
     }
     
-    showNotification("Calcul GSEA terminé", duration = 4, type = "message")
-    
-    gse_list[valid_results]
+    showNotification("Calcul GO GSEA terminé", duration = 4, type = "message")
+    gse_list[valid]
   })
   
-  #####=======================Mise à jour du sélecteur d'ontologie GSEA========
+  #####=======================Update sélecteur ontologie GO GSEA==============
   
-  observeEvent(gsea_results(), {
-    req(gsea_results())
-    available <- names(gsea_results())
+  observeEvent(go_gsea_results(), {
+    req(go_gsea_results())
+    available <- names(go_gsea_results())
     
-    labels_map <- c(
-      "BP" = "Processus Biologique (BP)",
-      "CC" = "Composant Cellulaire (CC)",
-      "MF" = "Fonction Moléculaire (MF)"
-    )
+    labels_map <- c("BP" = "Processus Biologique (BP)",
+                    "CC" = "Composant Cellulaire (CC)",
+                    "MF" = "Fonction Moléculaire (MF)")
     
     choices <- setNames(available, labels_map[available])
     
-    updateSelectInput(
-      session,
-      inputId  = "gsea_displayed_ontology",
-      choices  = choices,
-      selected = available[1]
-    )
+    updateSelectInput(session, "go_gsea_displayed_ontology",
+                      choices = choices, selected = available[1])
   })
   
-  #####=======================Rendu du plot GSEA===============================
+  #####=======================Filtrage direction GSEA (post-calcul)===========
   
-  output$gsea_plot <- renderPlotly({
+  # Applique le filtre NES (up / down / both) sur l'objet gseaResult
+  filter_gsea_by_direction <- function(gse, direction) {
+    if (is.null(gse) || nrow(as.data.frame(gse)) == 0) return(gse)
+    if (direction == "both") return(gse)
     
-    # Cas 1 : pas encore lancé -> plot vide avec message
-    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_gsea == 0) {
+    df <- gse@result
+    keep <- if (direction == "up") df$NES > 0 else df$NES < 0
+    
+    if (!any(keep)) return(NULL)
+    
+    gse@result <- df[keep, , drop = FALSE]
+    gse
+  }
+  
+  #####=======================Plot GO GSEA====================================
+  
+  output$go_gsea_plot <- renderPlotly({
+    
+    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_go_gsea == 0) {
       return(
         plotly_empty(type = "scatter", mode = "markers") %>%
           layout(
             xaxis = list(visible = FALSE),
             yaxis = list(visible = FALSE),
-            annotations = list(
-              list(
-                text = "Sélectionnez la ou les ontologie(s) puis cliquez sur « Lancer l'enrichissement GSEA »",
-                showarrow = FALSE,
-                font = list(size = 16, color = "#666")
-              )
-            )
+            annotations = list(list(
+              text = "Sélectionnez la ou les ontologie(s) puis cliquez sur « Lancer GO GSEA »",
+              showarrow = FALSE,
+              font = list(size = 16, color = "#666")
+            ))
           )
       )
     }
     
-    # Cas 2 : calcul lancé -> on récupère le gse de l'ontologie affichée
-    req(gsea_results())
-    req(input$gsea_displayed_ontology)
+    req(go_gsea_results())
+    req(input$go_gsea_displayed_ontology)
     
-    gse <- gsea_results()[[input$gsea_displayed_ontology]]
+    gse <- go_gsea_results()[[input$go_gsea_displayed_ontology]]
     if (is.null(gse)) return(NULL)
     
-    label <- if (is.null(input$gsea_title) || input$gsea_title == "") {
-      paste0("GSEA GO-", input$gsea_displayed_ontology)
-    } else {
-      input$gsea_title
+    # Filtrage par direction NES
+    gse <- filter_gsea_by_direction(gse, input$go_gsea_direction)
+    if (is.null(gse) || nrow(as.data.frame(gse)) == 0) {
+      return(
+        plotly_empty() %>%
+          layout(annotations = list(list(
+            text = "Aucun pathway dans cette direction",
+            showarrow = FALSE, font = list(size = 16, color = "#666")
+          )))
+      )
     }
     
-    top_n <- input$gsea_top_n_terms
+    label <- if (is.null(input$go_gsea_title) || input$go_gsea_title == "") {
+      paste0("GO GSEA - ", input$go_gsea_displayed_ontology)
+    } else input$go_gsea_title
     
-    # Génère uniquement le plot demandé
-    selected_plot <- switch(input$gsea_selected_plot,
+    top_n <- input$go_gsea_top_n_terms
+    
+    selected_plot <- switch(input$go_gsea_selected_plot,
                             "Dotplot"   = generate_dotplot(gse, label = label, top_n = top_n),
                             "Cnetplot"  = generate_cnetplot(gse, label = label, top_n = top_n),
                             "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
@@ -603,43 +551,34 @@ function(input, output, session) {
     
     ggplotly(selected_plot, tooltip = c("x", "y", "text")) %>%
       layout(dragmode = "zoom", hovermode = "closest") %>%
-      config(
-        displayModeBar = input$gsea_toolbox,
-        modeBarButtonsToRemove = list("toImage"),
-        displaylogo = FALSE
-      ) %>%
+      config(displayModeBar = input$go_gsea_toolbox,
+             modeBarButtonsToRemove = list("toImage"),
+             displaylogo = FALSE) %>%
       plotly::toWebGL()
   })
   
-  #####=======================Statut affiché sous le bouton GSEA===============
-  
-  output$gsea_status <- renderText({
-    if (input$run_gsea == 0) return("")
-    
-    results <- gsea_results()
+  output$go_gsea_status <- renderText({
+    if (input$run_go_gsea == 0) return("")
+    results <- go_gsea_results()
     if (is.null(results)) return("Aucun résultat disponible")
-    
-    n_ont <- length(results)
-    paste0("Calcul terminé (", n_ont, " ontologie(s))")
+    paste0("Calcul terminé (", length(results), " ontologie(s))")
   })
   
-  #####=======================Téléchargement du plot GSEA======================
-  
-  output$downloadGsea <- downloadHandler(
+  output$downloadGoGsea <- downloadHandler(
     filename = function() {
-      paste0("Enrichissement_GSEA_", input$gsea_selected_plot, "_", 
-             input$gsea_displayed_ontology, "_", Sys.Date(), ".png")
+      paste0("GO_GSEA_", input$go_gsea_selected_plot, "_",
+             input$go_gsea_displayed_ontology, "_", Sys.Date(), ".png")
     },
     content = function(file) {
-      gse <- gsea_results()[[input$gsea_displayed_ontology]]
-      label <- if (is.null(input$gsea_title) || input$gsea_title == "") {
-        paste0("GSEA GO-", input$gsea_displayed_ontology)
-      } else {
-        input$gsea_title
-      }
-      top_n <- input$gsea_top_n_terms
+      gse <- go_gsea_results()[[input$go_gsea_displayed_ontology]]
+      gse <- filter_gsea_by_direction(gse, input$go_gsea_direction)
       
-      selected_plot <- switch(input$gsea_selected_plot,
+      label <- if (is.null(input$go_gsea_title) || input$go_gsea_title == "") {
+        paste0("GO GSEA - ", input$go_gsea_displayed_ontology)
+      } else input$go_gsea_title
+      top_n <- input$go_gsea_top_n_terms
+      
+      selected_plot <- switch(input$go_gsea_selected_plot,
                               "Dotplot"   = generate_dotplot(gse, label = label, top_n = top_n),
                               "Cnetplot"  = generate_cnetplot(gse, label = label, top_n = top_n),
                               "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
@@ -649,7 +588,385 @@ function(input, output, session) {
                               "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
                               "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
       )
+      ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
+    }
+  )
+  
+  
+  ####============================ONGLET PATHWAY ORA============================
+  
+  #####=======================Calcul Pathway ORA===============================
+  
+  pathway_ora_results <- eventReactive(input$run_pathway_ora, {
+    
+    req(processed_data())
+    req(length(input$pathway_ora_databases) > 0)
+    
+    df <- processed_data()
+    significant_genes <- get_directional_genes(df, input$pathway_ora_direction)
+    
+    if (length(significant_genes) == 0) {
+      shinyalert(title = "Aucun gène significatif", type = "warning")
+      return(NULL)
+    }
+    
+    org_db <- species_to_orgdb[[input$species]]
+    if (is.null(org_db)) {
+      shinyalert(title = "Espèce non supportée", type = "error")
+      return(NULL)
+    }
+    
+    # Conversion SYMBOL -> ENTREZID (requis pour KEGG/Reactome)
+    entrez_ids <- convert_symbols_to_entrez(significant_genes, org_db)
+    if (is.null(entrez_ids) || length(entrez_ids) == 0) {
+      shinyalert(
+        title = "Conversion impossible",
+        text  = "Aucun de vos gènes n'a pu être converti en ENTREZID.",
+        type  = "error"
+      )
+      return(NULL)
+    }
+    
+    showNotification(
+      paste0("Calcul Pathway ORA sur ", length(input$pathway_ora_databases), " base(s)..."),
+      duration = NULL, id = "pathway_ora_running", type = "message"
+    )
+    
+    results <- list()
+    
+    # KEGG
+    if ("KEGG" %in% input$pathway_ora_databases) {
+      kegg_code <- species_to_kegg[[input$species]]
+      results$KEGG <- tryCatch(
+        run_ORA_KEGG(
+          gene_list = entrez_ids,
+          label     = "KEGG ORA",
+          organism  = kegg_code,
+          p_adj     = "BH",
+          p_cutoff  = 0.05
+        ),
+        error = function(e) {
+          showNotification(paste0("Erreur KEGG : ", e$message), type = "warning")
+          NULL
+        }
+      )
+    }
+    
+    # Reactome
+    if ("Reactome" %in% input$pathway_ora_databases) {
+      reactome_code <- species_to_reactome[[input$species]]
+      results$Reactome <- tryCatch(
+        run_ORA_pathway(
+          gene_list = entrez_ids,
+          label     = "Reactome ORA",
+          organism  = reactome_code,
+          p_adj     = "BH",
+          p_cutoff  = 0.05
+        ),
+        error = function(e) {
+          showNotification(paste0("Erreur Reactome : ", e$message), type = "warning")
+          NULL
+        }
+      )
+    }
+    
+    removeNotification("pathway_ora_running")
+    
+    valid <- sapply(results, function(r) !is.null(r) && nrow(as.data.frame(r)) > 0)
+    if (!any(valid)) {
+      shinyalert(title = "Aucun pathway enrichi", type = "warning")
+      return(NULL)
+    }
+    
+    showNotification("Calcul Pathway ORA terminé", duration = 4, type = "message")
+    results[valid]
+  })
+  
+  #####=======================Update sélecteur DB Pathway ORA================
+  
+  observeEvent(pathway_ora_results(), {
+    req(pathway_ora_results())
+    available <- names(pathway_ora_results())
+    
+    updateSelectInput(session, "pathway_ora_displayed_db",
+                      choices = available, selected = available[1])
+  })
+  
+  #####=======================Plot Pathway ORA================================
+  
+  output$pathway_ora_plot <- renderPlotly({
+    
+    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_pathway_ora == 0) {
+      return(
+        plotly_empty() %>%
+          layout(
+            xaxis = list(visible = FALSE),
+            yaxis = list(visible = FALSE),
+            annotations = list(list(
+              text = "Sélectionnez la ou les base(s) puis cliquez sur « Lancer Pathway ORA »",
+              showarrow = FALSE,
+              font = list(size = 16, color = "#666")
+            ))
+          )
+      )
+    }
+    
+    req(pathway_ora_results())
+    req(input$pathway_ora_displayed_db)
+    
+    res <- pathway_ora_results()[[input$pathway_ora_displayed_db]]
+    if (is.null(res)) return(NULL)
+    
+    label <- if (is.null(input$pathway_ora_title) || input$pathway_ora_title == "") {
+      paste0("Pathway ORA - ", input$pathway_ora_displayed_db)
+    } else input$pathway_ora_title
+    
+    top_n <- input$pathway_ora_top_n_terms
+    
+    selected_plot <- switch(input$pathway_ora_selected_plot,
+                            "Dotplot"   = generate_dotplot(res, label = label, top_n = top_n),
+                            "Barplot"   = generate_barplot(res, label = label, top_n = top_n),
+                            "Cnetplot"  = generate_cnetplot(res, label = label, top_n = top_n),
+                            "Emapplot"  = generate_emapplot(res, label = label, top_n = top_n),
+                            "Upsetplot" = generate_upsetplot(res, label = label),
+                            "Heatplot"  = generate_heatplot(res, label = label, top_n = top_n)
+    )
+    
+    if (is.null(selected_plot)) return(NULL)
+    
+    ggplotly(selected_plot, tooltip = c("x", "y", "text")) %>%
+      layout(dragmode = "zoom", hovermode = "closest") %>%
+      config(displayModeBar = input$pathway_ora_toolbox,
+             modeBarButtonsToRemove = list("toImage"),
+             displaylogo = FALSE) %>%
+      plotly::toWebGL()
+  })
+  
+  output$pathway_ora_status <- renderText({
+    if (input$run_pathway_ora == 0) return("")
+    results <- pathway_ora_results()
+    if (is.null(results)) return("Aucun résultat disponible")
+    paste0("Calcul terminé (", length(results), " base(s))")
+  })
+  
+  output$downloadPathwayOra <- downloadHandler(
+    filename = function() {
+      paste0("Pathway_ORA_", input$pathway_ora_selected_plot, "_",
+             input$pathway_ora_displayed_db, "_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      res <- pathway_ora_results()[[input$pathway_ora_displayed_db]]
+      label <- if (is.null(input$pathway_ora_title) || input$pathway_ora_title == "") {
+        paste0("Pathway ORA - ", input$pathway_ora_displayed_db)
+      } else input$pathway_ora_title
+      top_n <- input$pathway_ora_top_n_terms
       
+      selected_plot <- switch(input$pathway_ora_selected_plot,
+                              "Dotplot"   = generate_dotplot(res, label = label, top_n = top_n),
+                              "Barplot"   = generate_barplot(res, label = label, top_n = top_n),
+                              "Cnetplot"  = generate_cnetplot(res, label = label, top_n = top_n),
+                              "Emapplot"  = generate_emapplot(res, label = label, top_n = top_n),
+                              "Upsetplot" = generate_upsetplot(res, label = label),
+                              "Heatplot"  = generate_heatplot(res, label = label, top_n = top_n)
+      )
+      ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
+    }
+  )
+  
+  
+  ####============================ONGLET PATHWAY GSEA===========================
+  
+  #####=======================Calcul Pathway GSEA==============================
+  
+  pathway_gsea_results <- eventReactive(input$run_pathway_gsea, {
+    
+    req(processed_data())
+    req(length(input$pathway_gsea_databases) > 0)
+    
+    ranked <- gsea_ranked()
+    if (length(ranked) == 0) {
+      shinyalert(title = "Aucun gène valide", type = "warning")
+      return(NULL)
+    }
+    
+    org_db <- species_to_orgdb[[input$species]]
+    if (is.null(org_db)) {
+      shinyalert(title = "Espèce non supportée", type = "error")
+      return(NULL)
+    }
+    
+    # Conversion du ranking SYMBOL -> ENTREZID
+    ranked_entrez <- convert_ranked_to_entrez(ranked, org_db)
+    if (is.null(ranked_entrez) || length(ranked_entrez) == 0) {
+      shinyalert(
+        title = "Conversion impossible",
+        text  = "Aucun de vos gènes n'a pu être converti en ENTREZID.",
+        type  = "error"
+      )
+      return(NULL)
+    }
+    
+    showNotification(
+      paste0("Calcul Pathway GSEA sur ", length(input$pathway_gsea_databases),
+             " base(s)... Peut prendre plusieurs minutes."),
+      duration = NULL, id = "pathway_gsea_running", type = "message"
+    )
+    
+    results <- list()
+    
+    # KEGG
+    if ("KEGG" %in% input$pathway_gsea_databases) {
+      kegg_code <- species_to_kegg[[input$species]]
+      results$KEGG <- tryCatch(
+        run_gsea_kegg(
+          ranked_gene_list = ranked_entrez,
+          label            = "KEGG GSEA",
+          organism         = kegg_code,
+          p_adj            = "BH",
+          p_cutoff         = 0.05
+        ),
+        error = function(e) {
+          showNotification(paste0("Erreur KEGG : ", e$message), type = "warning")
+          NULL
+        }
+      )
+    }
+    
+    # Reactome
+    if ("Reactome" %in% input$pathway_gsea_databases) {
+      reactome_code <- species_to_reactome[[input$species]]
+      results$Reactome <- tryCatch(
+        run_gsea_reactome(
+          ranked_gene_list = ranked_entrez,
+          label            = "Reactome GSEA",
+          organism         = reactome_code,
+          p_adj            = "BH",
+          p_cutoff         = 0.05
+        ),
+        error = function(e) {
+          showNotification(paste0("Erreur Reactome : ", e$message), type = "warning")
+          NULL
+        }
+      )
+    }
+    
+    removeNotification("pathway_gsea_running")
+    
+    valid <- sapply(results, function(r) !is.null(r) && nrow(as.data.frame(r)) > 0)
+    if (!any(valid)) {
+      shinyalert(title = "Aucun pathway enrichi", type = "warning")
+      return(NULL)
+    }
+    
+    showNotification("Calcul Pathway GSEA terminé", duration = 4, type = "message")
+    results[valid]
+  })
+  
+  #####=======================Update sélecteur DB Pathway GSEA===============
+  
+  observeEvent(pathway_gsea_results(), {
+    req(pathway_gsea_results())
+    available <- names(pathway_gsea_results())
+    
+    updateSelectInput(session, "pathway_gsea_displayed_db",
+                      choices = available, selected = available[1])
+  })
+  
+  #####=======================Plot Pathway GSEA===============================
+  
+  output$pathway_gsea_plot <- renderPlotly({
+    
+    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_pathway_gsea == 0) {
+      return(
+        plotly_empty() %>%
+          layout(
+            xaxis = list(visible = FALSE),
+            yaxis = list(visible = FALSE),
+            annotations = list(list(
+              text = "Sélectionnez la ou les base(s) puis cliquez sur « Lancer Pathway GSEA »",
+              showarrow = FALSE,
+              font = list(size = 16, color = "#666")
+            ))
+          )
+      )
+    }
+    
+    req(pathway_gsea_results())
+    req(input$pathway_gsea_displayed_db)
+    
+    gse <- pathway_gsea_results()[[input$pathway_gsea_displayed_db]]
+    if (is.null(gse)) return(NULL)
+    
+    # Filtrage par direction NES
+    gse <- filter_gsea_by_direction(gse, input$pathway_gsea_direction)
+    if (is.null(gse) || nrow(as.data.frame(gse)) == 0) {
+      return(
+        plotly_empty() %>%
+          layout(annotations = list(list(
+            text = "Aucun pathway dans cette direction",
+            showarrow = FALSE, font = list(size = 16, color = "#666")
+          )))
+      )
+    }
+    
+    label <- if (is.null(input$pathway_gsea_title) || input$pathway_gsea_title == "") {
+      paste0("Pathway GSEA - ", input$pathway_gsea_displayed_db)
+    } else input$pathway_gsea_title
+    
+    top_n <- input$pathway_gsea_top_n_terms
+    
+    selected_plot <- switch(input$pathway_gsea_selected_plot,
+                            "Dotplot"   = generate_dotplot(gse, label = label, top_n = top_n),
+                            "Cnetplot"  = generate_cnetplot(gse, label = label, top_n = top_n),
+                            "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
+                            "Upsetplot" = generate_upsetplot(gse, label = label),
+                            "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
+                            "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
+                            "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
+                            "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
+    )
+    
+    if (is.null(selected_plot)) return(NULL)
+    
+    ggplotly(selected_plot, tooltip = c("x", "y", "text")) %>%
+      layout(dragmode = "zoom", hovermode = "closest") %>%
+      config(displayModeBar = input$pathway_gsea_toolbox,
+             modeBarButtonsToRemove = list("toImage"),
+             displaylogo = FALSE) %>%
+      plotly::toWebGL()
+  })
+  
+  output$pathway_gsea_status <- renderText({
+    if (input$run_pathway_gsea == 0) return("")
+    results <- pathway_gsea_results()
+    if (is.null(results)) return("Aucun résultat disponible")
+    paste0("Calcul terminé (", length(results), " base(s))")
+  })
+  
+  output$downloadPathwayGsea <- downloadHandler(
+    filename = function() {
+      paste0("Pathway_GSEA_", input$pathway_gsea_selected_plot, "_",
+             input$pathway_gsea_displayed_db, "_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      gse <- pathway_gsea_results()[[input$pathway_gsea_displayed_db]]
+      gse <- filter_gsea_by_direction(gse, input$pathway_gsea_direction)
+      
+      label <- if (is.null(input$pathway_gsea_title) || input$pathway_gsea_title == "") {
+        paste0("Pathway GSEA - ", input$pathway_gsea_displayed_db)
+      } else input$pathway_gsea_title
+      top_n <- input$pathway_gsea_top_n_terms
+      
+      selected_plot <- switch(input$pathway_gsea_selected_plot,
+                              "Dotplot"   = generate_dotplot(gse, label = label, top_n = top_n),
+                              "Cnetplot"  = generate_cnetplot(gse, label = label, top_n = top_n),
+                              "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
+                              "Upsetplot" = generate_upsetplot(gse, label = label),
+                              "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
+                              "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
+                              "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
+                              "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
+      )
       ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
     }
   )
