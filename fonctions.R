@@ -136,7 +136,8 @@ plot_volcano <- function(data,
 run_ORA_go <- function(gene_list, label,
                        org_db = org.Hs.eg.db,
                        ontology = c("BP", "CC", "MF"),
-                       p_adj = "BH", p_cutoff = 0.05,
+                       p_adj = "BH",
+                       p_cutoff = 0.05,
                        key_type = "SYMBOL") {
   
   result <- list()

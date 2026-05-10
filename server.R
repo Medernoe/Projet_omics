@@ -85,6 +85,15 @@ function(input, output, session) {
     )
   })
   
+  #####=========================MAPPING ESPÈCE -> ORG.DB========================
+  # Table de correspondance entre le nom de l'espèce affiché côté UI
+  # et l'objet OrgDb à passer à clusterProfiler
+  species_to_orgdb <- list(
+    "Homo sapiens"            = org.Hs.eg.db::org.Hs.eg.db,
+    "Mus musculus"            = org.Mm.eg.db::org.Mm.eg.db,
+    "Drosophila melanogaster" = org.Dm.eg.db::org.Dm.eg.db
+  )
+  
   
   ####============================ONGLET DEG====================================
   
@@ -181,45 +190,17 @@ function(input, output, session) {
   })
   
   
-  ####============================ONGLET ENRICHISSEMENT=========================
+  ####============================ONGLET ENRICHISSEMENT ORA=====================
   
-  #####=======================Calcul ORA (lancé sur clic bouton)================
+  #####=======================Calcul ORA========================================
   
   # eventReactive : ne se déclenche QUE quand l'utilisateur clique sur le bouton.
   # Le résultat est ensuite mis en cache : changer l'ontologie affichée ou le
   # type de plot ne relance PAS le calcul.
-  
-  #####=========================MAPPING ESPÈCE -> ORG.DB========================
-  # Table de correspondance entre le nom de l'espèce affiché côté UI
-  # et l'objet OrgDb à passer à clusterProfiler
-  species_to_orgdb <- list(
-    "Homo sapiens"            = org.Hs.eg.db::org.Hs.eg.db,
-    "Mus musculus"            = org.Mm.eg.db::org.Mm.eg.db,
-    "Drosophila melanogaster" = org.Dm.eg.db::org.Dm.eg.db
-  )  
-  
-  # Indicateur d'état du calcul (réactif pour déclencher les updates UI)
-  calculation_running <- reactiveVal(FALSE)
-  
-  # Déclencheur : dès qu'on clique sur le bouton, on signale "en cours"
-  # La priorité haute garantit que ça s'exécute avant ora_results
-  observeEvent(input$run_enrichment, {
-    calculation_running(TRUE)
-  }, priority = 10)
-  
-  ora_results <- eventReactive(input$run_enrichment, {
+  ora_results <- eventReactive(input$run_ora, {
     
-    req(input$enrichment_method == "ORA")
     req(processed_data())
-    req(length(input$go_ontology) > 0)
-    
-    # Active l'état "calcul en cours"
-    calculation_running(TRUE)
-    on.exit(calculation_running(FALSE))
-    
-    # FORCE Shiny à pousser l'état au navigateur AVANT de bloquer
-    session$sendCustomMessage("dummy", list())
-    Sys.sleep(0.05)  # laisse 50ms au navigateur pour rafraîchir
+    req(length(input$ora_go_ontology) > 0)
     
     df <- processed_data()
     significant_genes <- df$GeneName[as.character(df$Significance) != "Not significant"]
@@ -246,7 +227,7 @@ function(input, output, session) {
     }
     
     showNotification(
-      paste0("Calcul ORA en cours sur ", length(input$go_ontology), 
+      paste0("Calcul ORA en cours sur ", length(input$ora_go_ontology), 
              " ontologie(s)..."),
       duration = NULL,
       id       = "ora_running",
@@ -254,25 +235,31 @@ function(input, output, session) {
     )
     
     # Lancement du calcul
-    # withProgress force Shiny à mettre à jour l'UI avant le calcul
-    ego_list <-
-        tryCatch(
-          run_ORA_go(
-            gene_list = significant_genes,
-            label     = "Enrichissement",
-            org_db    = org_db,
-            ontology  = input$go_ontology,
-            p_adj     = "BH",
-            p_cutoff  = 0.05,
-            key_type  = "SYMBOL"
-          ),
-          error = function(e) NULL
-        )
-    
+    ego_list <- tryCatch(
+      run_ORA_go(
+        gene_list = significant_genes,
+        label     = "Enrichissement",
+        org_db    = org_db,
+        ontology  = input$ora_go_ontology,
+        p_adj     = "BH",
+        p_cutoff  = 0.05,
+        key_type  = "SYMBOL"
+      ),
+      error = function(e) NULL
+    )
     
     removeNotification("ora_running")
     
-    # Vérification que le mapping a réussi pour au moins une ontologie
+    # Vérification que le calcul a réussi
+    if (is.null(ego_list)) {
+      shinyalert(
+        title = "Erreur de calcul",
+        text  = "Le calcul ORA a échoué. Vérifiez l'espèce et le format des gènes.",
+        type  = "error"
+      )
+      return(NULL)
+    }
+    
     valid_results <- !sapply(ego_list, is.null)
     
     if (!any(valid_results)) {
@@ -297,7 +284,6 @@ function(input, output, session) {
         duration = 6,
         type     = "warning"
       )
-      ego_list <- ego_list[valid_results]
     }
     
     showNotification("Calcul ORA terminé", duration = 4, type = "message")
@@ -305,14 +291,13 @@ function(input, output, session) {
     ego_list[valid_results]
   })
   
-  #####=======================Mise à jour du sélecteur d'ontologie==============
+  #####=======================Mise à jour du sélecteur d'ontologie ORA==========
   
-  # Après chaque calcul ORA, on restreint le selectInput "displayed_ontology"
-  # aux ontologies qui ont effectivement été calculées
+  # Après chaque calcul ORA, on restreint le selectInput aux ontologies calculées
   observeEvent(ora_results(), {
+    req(ora_results())
     available <- names(ora_results())
     
-    # Labels en français pour l'affichage
     labels_map <- c(
       "BP" = "Processus Biologique (BP)",
       "CC" = "Composant Cellulaire (CC)",
@@ -323,60 +308,18 @@ function(input, output, session) {
     
     updateSelectInput(
       session,
-      inputId  = "displayed_ontology",
+      inputId  = "ora_displayed_ontology",
       choices  = choices,
       selected = available[1]
     )
   })
   
-  #####=======================Génération des plots ORA==========================
+  #####=======================Rendu du plot ORA================================
   
-  # Construit la liste des plots disponibles pour l'ontologie sélectionnée.
-  # Cette étape est légère car elle réutilise l'objet ego déjà calculé.
-  ora_plots <- reactive({
-    req(ora_results())
-    req(input$displayed_ontology)
+  output$ora_plot <- renderPlotly({
     
-    ego <- ora_results()[[input$displayed_ontology]]
-    
-    # Si l'ontologie sélectionnée n'a pas été calculée, on sort
-    if (is.null(ego)) return(NULL)
-    
-    # Titre : celui saisi par l'utilisateur, sinon un titre par défaut
-    label <- if (is.null(input$enrichment_title) || input$enrichment_title == "") {
-      paste0("Enrichissement GO-", input$displayed_ontology)
-    } else {
-      input$enrichment_title
-    }
-    
-    plot_ORA(ego, label = label, top_n = input$top_n_terms)
-  })
-  
-  #####=======================Affichage de l'erreur enrichissement==============
-  
-  # Affiche l'image d'erreur tant qu'aucun calcul n'a été lancé OU si le résultat est vide
-  output$show_enrichment_error <- reactive({
-    is.null(input$deg_file) || 
-      is.null(raw_data()) || 
-      input$run_enrichment == 0
-  })
-  outputOptions(output, "show_enrichment_error", suspendWhenHidden = FALSE)
-  
-  output$enrichment_error_img <- renderImage({
-    list(
-      src         = "www/erreur_format.jpg",  # TODO : image dédiée à l'enrichissement
-      contentType = "image/jpeg",
-      width       = "70%",
-      height      = "auto",
-      alt         = "Aucun calcul lancé ou aucun résultat disponible"
-    )
-  }, deleteFile = FALSE)
-  
-  #####=======================Rendu du plot d'enrichissement====================
-  
-  output$enrichment_plot <- renderPlotly({
-    
-    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_enrichment == 0) {
+    # Cas 1 : pas encore lancé -> plot vide avec message
+    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_ora == 0) {
       return(
         plotly_empty(type = "scatter", mode = "markers") %>%
           layout(
@@ -384,7 +327,7 @@ function(input, output, session) {
             yaxis = list(visible = FALSE),
             annotations = list(
               list(
-                text = "Sélectionner votre méthode d'enrichissement, le(s) ontologie et cliquez sur « Lancer l'enrichissement »",
+                text = "Sélectionnez la ou les ontologie(s) puis cliquez sur « Lancer l'enrichissement ORA »",
                 showarrow = FALSE,
                 font = list(size = 16, color = "#666")
               )
@@ -393,67 +336,320 @@ function(input, output, session) {
       )
     }
     
-    req(ora_plots())
+    # Cas 2 : calcul lancé -> on récupère l'ego de l'ontologie affichée
+    req(ora_results())
+    req(input$ora_displayed_ontology)
     
-    plot_choice <- if (input$enrichment_method == "ORA") {
-      input$selected_plot_ora
+    ego <- ora_results()[[input$ora_displayed_ontology]]
+    if (is.null(ego)) return(NULL)
+    
+    # Titre : celui saisi par l'utilisateur, sinon un titre par défaut
+    label <- if (is.null(input$ora_title) || input$ora_title == "") {
+      paste0("Enrichissement GO-", input$ora_displayed_ontology)
     } else {
-      input$selected_plot_gsea
+      input$ora_title
     }
     
-    selected_plot <- ora_plots()[[plot_choice]]
+    top_n <- input$ora_top_n_terms
+    
+    # Génère uniquement le plot demandé (plus rapide qu'une liste complète)
+    selected_plot <- switch(input$ora_selected_plot,
+                            "Dotplot"   = generate_dotplot(ego, label = label, top_n = top_n),
+                            "Barplot"   = generate_barplot(ego, label = label, top_n = top_n),
+                            "Cnetplot"  = generate_cnetplot(ego, label = label, top_n = top_n),
+                            "Emapplot"  = generate_emapplot(ego, label = label, top_n = top_n),
+                            "Goplot"    = generate_goplot(ego, label = label, top_n = top_n),
+                            "Upsetplot" = generate_upsetplot(ego, label = label),
+                            "Heatplot"  = generate_heatplot(ego, label = label, top_n = top_n)
+    )
+    
     if (is.null(selected_plot)) return(NULL)
     
     ggplotly(selected_plot, tooltip = c("x", "y", "text")) %>%
       layout(dragmode = "zoom", hovermode = "closest") %>%
       config(
-        displayModeBar = input$enrichment_toolbox,
+        displayModeBar = input$ora_toolbox,
         modeBarButtonsToRemove = list("toImage"),
         displaylogo = FALSE
       ) %>%
       plotly::toWebGL()
   })
   
-  #####=======================Statut affiché sous le bouton=====================
+  #####=======================Statut affiché sous le bouton ORA================
   
-  # Petit texte d'aide qui informe l'utilisateur de l'état du calcul
-  output$enrichment_status <- renderText({
-    if (input$run_enrichment == 0) {
-      return("")  # rien affiché tant qu'aucun calcul lancé
-    }
-    
-    if (calculation_running()) {
-      return("")  # rien pendant le calcul (le spinner suffit)
-    }
+  output$ora_status <- renderText({
+    if (input$run_ora == 0) return("")
     
     results <- ora_results()
-    if (is.null(results)) {
-      return("Aucun résultat disponible")
-    }
+    if (is.null(results)) return("Aucun résultat disponible")
     
     n_ont <- length(results)
     paste0("Calcul terminé (", n_ont, " ontologie(s))")
   })
   
-  #####=======================Téléchargement du plot d'enrichissement===========
+  #####=======================Téléchargement du plot ORA=======================
   
-  output$downloadEnrichment <- downloadHandler(
+  output$downloadOra <- downloadHandler(
     filename = function() {
-      plot_choice <- if (input$enrichment_method == "ORA") {
-        input$selected_plot_ora
-      } else {
-        input$selected_plot_gsea
-      }
-      paste0("Enrichissement_", plot_choice, "_", 
-             input$displayed_ontology, "_", Sys.Date(), ".png")
+      paste0("Enrichissement_ORA_", input$ora_selected_plot, "_", 
+             input$ora_displayed_ontology, "_", Sys.Date(), ".png")
     },
     content = function(file) {
-      plot_choice <- if (input$enrichment_method == "ORA") {
-        input$selected_plot_ora
+      ego <- ora_results()[[input$ora_displayed_ontology]]
+      label <- if (is.null(input$ora_title) || input$ora_title == "") {
+        paste0("Enrichissement GO-", input$ora_displayed_ontology)
       } else {
-        input$selected_plot_gsea
+        input$ora_title
       }
-      selected_plot <- ora_plots()[[plot_choice]]
+      top_n <- input$ora_top_n_terms
+      
+      selected_plot <- switch(input$ora_selected_plot,
+                              "Dotplot"   = generate_dotplot(ego, label = label, top_n = top_n),
+                              "Barplot"   = generate_barplot(ego, label = label, top_n = top_n),
+                              "Cnetplot"  = generate_cnetplot(ego, label = label, top_n = top_n),
+                              "Emapplot"  = generate_emapplot(ego, label = label, top_n = top_n),
+                              "Goplot"    = generate_goplot(ego, label = label, top_n = top_n),
+                              "Upsetplot" = generate_upsetplot(ego, label = label),
+                              "Heatplot"  = generate_heatplot(ego, label = label, top_n = top_n)
+      )
+      
+      ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
+    }
+  )
+  
+  
+  ####============================ONGLET ENRICHISSEMENT GSEA====================
+  
+  #####=======================Préparation du ranking GSEA======================
+  
+  # GSEA prend un vecteur numérique nommé, trié décroissant 
+  # (noms = gènes, valeurs = log2FC)
+  gsea_ranked <- reactive({
+    req(processed_data())
+    
+    df <- processed_data()
+    
+    # Retirer NA et dédupliquer (garder le |log2FC| max par gène)
+    df <- df[!is.na(df$log2FC) & !is.na(df$GeneName), ]
+    df <- df[order(-abs(df$log2FC)), ]
+    df <- df[!duplicated(df$GeneName), ]
+    
+    ranked <- df$log2FC
+    names(ranked) <- df$GeneName
+    sort(ranked, decreasing = TRUE)
+  })
+  
+  #####=======================Calcul GSEA======================================
+  
+  gsea_results <- eventReactive(input$run_gsea, {
+    
+    req(processed_data())
+    req(length(input$gsea_go_ontology) > 0)
+    
+    ranked <- gsea_ranked()
+    
+    if (length(ranked) == 0) {
+      shinyalert(
+        title = "Aucun gène valide",
+        text  = "Aucun gène valide pour construire le ranking GSEA.",
+        type  = "warning"
+      )
+      return(NULL)
+    }
+    
+    # Récupération de l'OrgDb correspondant à l'espèce sélectionnée
+    org_db <- species_to_orgdb[[input$species]]
+    
+    if (is.null(org_db)) {
+      shinyalert(
+        title = "Espèce non supportée",
+        text  = paste0("Aucune base d'annotation disponible pour : ", input$species),
+        type  = "error"
+      )
+      return(NULL)
+    }
+    
+    showNotification(
+      paste0("Calcul GSEA en cours sur ", length(input$gsea_go_ontology), 
+             " ontologie(s)... Peut prendre plusieurs minutes."),
+      duration = NULL,
+      id       = "gsea_running",
+      type     = "message"
+    )
+    
+    # Lancement du calcul GSEA
+    gse_list <- tryCatch(
+      run_gsea_go(
+        ranked_gene_list = ranked,
+        label            = "GSEA",
+        org_db           = org_db,
+        ontology         = input$gsea_go_ontology,
+        p_adj            = "BH",
+        p_cutoff         = 0.05,
+        key_type         = "SYMBOL"
+      ),
+      error = function(e) NULL
+    )
+    
+    removeNotification("gsea_running")
+    
+    if (is.null(gse_list)) {
+      shinyalert(
+        title = "Erreur de calcul",
+        text  = "Le calcul GSEA a échoué. Vérifiez l'espèce et le format des gènes.",
+        type  = "error"
+      )
+      return(NULL)
+    }
+    
+    # Filtrage des ontologies vides (aucun terme enrichi)
+    valid_results <- sapply(gse_list, function(g) !is.null(g) && nrow(as.data.frame(g)) > 0)
+    
+    if (!any(valid_results)) {
+      shinyalert(
+        title = "Aucun terme enrichi",
+        text  = "Aucun terme GO n'est significativement enrichi avec ces paramètres.",
+        type  = "warning"
+      )
+      return(NULL)
+    }
+    
+    if (!all(valid_results)) {
+      failed <- names(gse_list)[!valid_results]
+      showNotification(
+        paste0("Avertissement : aucun résultat pour ", paste(failed, collapse = ", ")),
+        duration = 6,
+        type     = "warning"
+      )
+    }
+    
+    showNotification("Calcul GSEA terminé", duration = 4, type = "message")
+    
+    gse_list[valid_results]
+  })
+  
+  #####=======================Mise à jour du sélecteur d'ontologie GSEA========
+  
+  observeEvent(gsea_results(), {
+    req(gsea_results())
+    available <- names(gsea_results())
+    
+    labels_map <- c(
+      "BP" = "Processus Biologique (BP)",
+      "CC" = "Composant Cellulaire (CC)",
+      "MF" = "Fonction Moléculaire (MF)"
+    )
+    
+    choices <- setNames(available, labels_map[available])
+    
+    updateSelectInput(
+      session,
+      inputId  = "gsea_displayed_ontology",
+      choices  = choices,
+      selected = available[1]
+    )
+  })
+  
+  #####=======================Rendu du plot GSEA===============================
+  
+  output$gsea_plot <- renderPlotly({
+    
+    # Cas 1 : pas encore lancé -> plot vide avec message
+    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_gsea == 0) {
+      return(
+        plotly_empty(type = "scatter", mode = "markers") %>%
+          layout(
+            xaxis = list(visible = FALSE),
+            yaxis = list(visible = FALSE),
+            annotations = list(
+              list(
+                text = "Sélectionnez la ou les ontologie(s) puis cliquez sur « Lancer l'enrichissement GSEA »",
+                showarrow = FALSE,
+                font = list(size = 16, color = "#666")
+              )
+            )
+          )
+      )
+    }
+    
+    # Cas 2 : calcul lancé -> on récupère le gse de l'ontologie affichée
+    req(gsea_results())
+    req(input$gsea_displayed_ontology)
+    
+    gse <- gsea_results()[[input$gsea_displayed_ontology]]
+    if (is.null(gse)) return(NULL)
+    
+    label <- if (is.null(input$gsea_title) || input$gsea_title == "") {
+      paste0("GSEA GO-", input$gsea_displayed_ontology)
+    } else {
+      input$gsea_title
+    }
+    
+    top_n <- input$gsea_top_n_terms
+    
+    # Génère uniquement le plot demandé
+    selected_plot <- switch(input$gsea_selected_plot,
+                            "Dotplot"   = generate_dotplot(gse, label = label, top_n = top_n),
+                            "Cnetplot"  = generate_cnetplot(gse, label = label, top_n = top_n),
+                            "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
+                            "Upsetplot" = generate_upsetplot(gse, label = label),
+                            "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
+                            "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
+                            "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
+                            "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
+    )
+    
+    if (is.null(selected_plot)) return(NULL)
+    
+    ggplotly(selected_plot, tooltip = c("x", "y", "text")) %>%
+      layout(dragmode = "zoom", hovermode = "closest") %>%
+      config(
+        displayModeBar = input$gsea_toolbox,
+        modeBarButtonsToRemove = list("toImage"),
+        displaylogo = FALSE
+      ) %>%
+      plotly::toWebGL()
+  })
+  
+  #####=======================Statut affiché sous le bouton GSEA===============
+  
+  output$gsea_status <- renderText({
+    if (input$run_gsea == 0) return("")
+    
+    results <- gsea_results()
+    if (is.null(results)) return("Aucun résultat disponible")
+    
+    n_ont <- length(results)
+    paste0("Calcul terminé (", n_ont, " ontologie(s))")
+  })
+  
+  #####=======================Téléchargement du plot GSEA======================
+  
+  output$downloadGsea <- downloadHandler(
+    filename = function() {
+      paste0("Enrichissement_GSEA_", input$gsea_selected_plot, "_", 
+             input$gsea_displayed_ontology, "_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      gse <- gsea_results()[[input$gsea_displayed_ontology]]
+      label <- if (is.null(input$gsea_title) || input$gsea_title == "") {
+        paste0("GSEA GO-", input$gsea_displayed_ontology)
+      } else {
+        input$gsea_title
+      }
+      top_n <- input$gsea_top_n_terms
+      
+      selected_plot <- switch(input$gsea_selected_plot,
+                              "Dotplot"   = generate_dotplot(gse, label = label, top_n = top_n),
+                              "Cnetplot"  = generate_cnetplot(gse, label = label, top_n = top_n),
+                              "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
+                              "Upsetplot" = generate_upsetplot(gse, label = label),
+                              "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
+                              "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
+                              "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
+                              "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
+      )
+      
       ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
     }
   )
