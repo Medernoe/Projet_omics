@@ -1,46 +1,49 @@
-#==================================================================================================
-#Author : Noé Méderlet 
-#contact : noe.mederlet@univ-rouen.fr
-#github : https://github.com/Medernoe/Projet_omics
-#organism : Master Bims M2, université de rouen 
-#project : Création d'une application interactive dédiée à l'analyse de données transcriptomiques,
-#développée dans le cadre d'un projet universitaire du Master 2 de Bioinformatique de l'Université de Rouen.
-#==================================================================================================
+#===========================Presentation========================================
+# Authors : Noé Méderlet, Mehdi Tachekort, Mathieu Cartier, Valentin Fourdreane
+# contact : noe.mederlet@univ-rouen.fr, mehdi.tachekort@univ-rouen.fr, 
+#           mathieu.cartier@univ-rouen.fr, valentin.fourdraine@univ-rouen.fr
+# github : https://github.com/Medernoe/Projet_omics
+# organism : Master Bims M2, université de rouen 
+# project : Création d'une application interactive dédiée à l'analyse de données 
+#           transcriptomiques, développée dans le cadre d'un projet universitaire 
+#           du Master 2 de Bioinformatique de l'Université de Rouen.
+#==============================================================================#
+
+#=========Chargement du global.R===============================================
 source("global.R")
 
-# Serveur
+#=========================SERVEUR==============================================
+
 function(input, output, session) {
   
-  #==================================================================================================
-  # CHARGEMENT DES DONNÉES
+  ####============================CHARGEMENT DES DONNÉES========================
   
-  # Lecture du fichier CSV uploadé par l'utilisateur
+  # Colonnes minimales requises dans le CSV uploadé
   required_columns <- c("GeneName", "log2FC", "pval")
   
-  data <- reactive({
-    req(input$file)
+  #####=======================Lecture du fichier CSV============================
+  raw_data <- reactive({
+    req(input$deg_file)
     
-    # Vérification de l’extension du fichier
-    ext <- tools::file_ext(input$file$name)
+    # Vérification de l'extension du fichier
+    ext <- tools::file_ext(input$deg_file$name)
     if (tolower(ext) != "csv") {
       shinyalert(
         title = "Format non valide",
-        text = "Veuillez importer un fichier .csv uniquement.",
-        type = "error"
+        text  = "Veuillez importer un fichier .csv uniquement.",
+        type  = "error"
       )
       return(NULL)
     }
     
-    # Lecture sécurisée du CSV
+    # Lecture sécurisée du CSV (séparateur ;)
     df <- tryCatch(
-      {
-        read.csv(input$file$datapath, sep = ";")
-      },
+      read.csv(input$deg_file$datapath, sep = ";"),
       error = function(e) {
         shinyalert(
           title = "Erreur de lecture",
-          text = "Impossible de lire le fichier. Vérifiez qu'il s'agit d’un CSV valide.",
-          type = "error"
+          text  = "Impossible de lire le fichier. Vérifiez qu'il s'agit d'un CSV valide.",
+          type  = "error"
         )
         return(NULL)
       }
@@ -52,7 +55,7 @@ function(input, output, session) {
     if (!all(required_columns %in% colnames(df))) {
       shinyalert(
         title = "Colonnes manquantes",
-        text = paste0(
+        text  = paste0(
           "Le fichier doit contenir les colonnes suivantes : ",
           paste(required_columns, collapse = ", ")
         ),
@@ -64,278 +67,395 @@ function(input, output, session) {
     df
   })
   
-  # Fixe un seuil de latence avant la modification via les sliders (optimisation)
-  seuil_FC_debounced <- debounce(reactive(input$seuil_FC), 300)
-  seuil_pvalue_debounced <- debounce(reactive(input$seuil_pvalue), 300)
+  #####=======================Debounce des sliders==============================
+  # Évite que le calcul se relance à chaque pixel quand l'utilisateur fait 
+  # glisser un slider (latence de 300 ms)
+  fc_threshold_debounced     <- debounce(reactive(input$fc_threshold), 300)
+  pvalue_threshold_debounced <- debounce(reactive(input$pvalue_threshold), 300)
   
-  # Cette fonction réactive applique les seuils pour classifier les gènes
+  #####=======================Classification des gènes==========================
+  # Ajoute une colonne "Significance" : Upregulated / Downregulated / Not significant
   processed_data <- reactive({
-    if (is.null(data())) {
-      return(NULL)
-    }
-    df <- data()
-    # Fonction custom : détermine la significativité (Upregulated/Downregulated/Not significant)
-    significativity(df, 
-                    log2FC_cutoff = seuil_FC_debounced(),
-                    P_cutoff = seuil_pvalue_debounced())
+    if (is.null(raw_data())) return(NULL)
+    
+    significativity(
+      data          = raw_data(),
+      log2FC_cutoff = fc_threshold_debounced(),
+      P_cutoff      = pvalue_threshold_debounced()
+    )
   })
   
   
+  ####============================ONGLET DEG====================================
   
-  #==================================================================================================
-  # DEG 
-  #==================================================================================================
+  #####=======================Volcano plot======================================
   
-  # ----------------------- VOLCANO PLOT -----------------------
-
-  # Création du volcano plot avec ggplot
+  # Génère l'objet ggplot du volcano (utilisé par le rendu et le download)
   create_volcano <- reactive({
-    req(data())  # S'assure que les données existent avant de créer le plot
+    req(processed_data())
     
-    df <- processed_data()
-    selected_row <- input$data_rows_selected  # Récupère la ligne sélectionnée dans le tableau
+    selected_row <- input$deg_table_rows_selected  # ligne cliquée dans le tableau
     
-    # Fonction custom : génère le volcano plot avec highlight optionnel
-    plot_v <- plot_volcano(df,
-                           log2FC_cutoff = seuil_FC_debounced(),
-                           P_cutoff = seuil_pvalue_debounced(),
-                           seuil_v = input$v,      # Affiche/masque lignes verticales
-                           seuil_h = input$h,      # Affiche/masque ligne horizontale
-                           title = input$title_DEG,
-                           highlight_row = selected_row)
-    
-    return(plot_v)
+    plot_volcano(
+      data          = processed_data(),
+      log2FC_cutoff = fc_threshold_debounced(),
+      P_cutoff      = pvalue_threshold_debounced(),
+      seuil_v       = input$show_vline,
+      seuil_h       = input$show_hline,
+      title         = input$deg_title,
+      highlight_row = selected_row
+    )
   })
   
-  # Condition pour afficher l'image d'erreur (pas de fichier chargé)
-  # Cette fonction reactive retourne TRUE si aucun fichier n'est chargé ou si data n'a pas le bon format  
+  # Affiche l'image d'erreur si pas de fichier chargé
   output$show_volcano_error <- reactive({
-    is.null(input$file) || is.null(data())
+    is.null(input$deg_file) || is.null(raw_data())
   })
   outputOptions(output, "show_volcano_error", suspendWhenHidden = FALSE)
   
-  # Image d'erreur pour le volcano plot
+  # Image affichée tant qu'aucun fichier n'est chargé
   output$volcano_error_img <- renderImage({
     list(
-      src = "www/erreur_format.jpg",  
-      contentType = "image/jpeg",      
-      width = "70%",                   
-      height = "auto",                 
-      alt = "Format de fichier attendu"
+      src         = "www/erreur_format.jpg",
+      contentType = "image/jpeg",
+      width       = "70%",
+      height      = "auto",
+      alt         = "Format de fichier attendu"
     )
-  }, deleteFile = FALSE)  
+  }, deleteFile = FALSE)
   
-  # Rendu du volcano plot interactif avec Plotly
+  # Rendu interactif du volcano plot (ggplot -> plotly)
   output$volcano_plot <- renderPlotly({
-    req(input$file)  
+    req(input$deg_file)
     
-    # Fonction custom de création du vplot 
-    volcano <- create_volcano()
-    
-    # Conversion du ggplot en plotly 
-    ggplotly(volcano, tooltip = c("x", "y", "colour")) %>%
+    ggplotly(create_volcano(), tooltip = c("x", "y", "colour")) %>%
       layout(
-        dragmode = "zoom",      
-        hovermode = "closest"   
+        dragmode   = "zoom",
+        hovermode  = "closest"
       ) %>%
       config(
-        # Affiche/masque la barre d'outils selon l'input
-        displayModeBar = input$toolbox_DEG,  
-        modeBarButtonsToAdd = list("drawrect", "eraseshape"),
+        displayModeBar         = input$deg_toolbox,
+        modeBarButtonsToAdd    = list("drawrect", "eraseshape"),
         modeBarButtonsToRemove = list("toImage"),
-        displaylogo = FALSE
+        displaylogo            = FALSE
       ) %>%
-      # WebGL boost les performances 
-      plotly::toWebGL() 
+      plotly::toWebGL()  # WebGL pour gérer les milliers de points
   })
   
   # Téléchargement du volcano plot en PNG
   output$downloadVolcano <- downloadHandler(
     filename = function() {
-      paste("Volcano_plot_", Sys.Date(), ".png", sep = "")
+      paste0("Volcano_plot_", Sys.Date(), ".png")
     },
     content = function(file) {
       ggsave(file, plot = create_volcano(), width = 12, height = 8, dpi = 300)
     }
   )
   
-  # ----------------------- TABLEAU DES DONNÉES -----------------------
-
-  # Condition pour afficher le message d'erreur (pas de fichier chargé)
-  output$show_data_error <- reactive({
-    is.null(input$file) || is.null(data())
-  })
-  outputOptions(output, "show_data_error", suspendWhenHidden = FALSE)
+  #####=======================Tableau des données===============================
   
-  # Texte d'erreur pour le tableau
-  output$data_error_text <- renderText({
+  # Affiche le message d'erreur si pas de fichier chargé
+  output$show_table_error <- reactive({
+    is.null(input$deg_file) || is.null(raw_data())
+  })
+  outputOptions(output, "show_table_error", suspendWhenHidden = FALSE)
+  
+  output$table_error_text <- renderText({
     "Veuillez charger un fichier CSV au format attendu pour explorer les données"
   })
   
-  # Rendu du tableau interactif avec DataTables
-  output$data <- renderDT({
-    req(input$file)
+  # Tableau interactif DataTables
+  output$deg_table <- renderDT({
+    req(processed_data())
     
-    df <- processed_data()
-    
-    # Affiche le tableau
     datatable(
-      df,
-      selection = 'single',  
+      processed_data(),
+      selection = "single",
       options = list(
-        pageLength = 10,      
-        scrollX = TRUE,       
-        deferRender = TRUE,   
-        scroller = TRUE   
+        pageLength    = 10,
+        scrollX       = TRUE,
+        deferRender   = TRUE,
+        scroller      = TRUE
       )
     )
   })
   
-
   
-  #==================================================================================================
-  # Enrichissement 
-  #==================================================================================================
+  ####============================ONGLET ENRICHISSEMENT=========================
   
-  # ----------------------- ORA -----------------------
+  #####=======================Calcul ORA (lancé sur clic bouton)================
   
-  # Cette fonction réactive calcule les GO terms pour BP, CC, MC
-  processed_data_ORA <- reactive({
-    if (is.null(data())) {
-      return(NULL)
-    }
+  # eventReactive : ne se déclenche QUE quand l'utilisateur clique sur le bouton.
+  # Le résultat est ensuite mis en cache : changer l'ontologie affichée ou le
+  # type de plot ne relance PAS le calcul.
+  
+  #####=========================MAPPING ESPÈCE -> ORG.DB========================
+  # Table de correspondance entre le nom de l'espèce affiché côté UI
+  # et l'objet OrgDb à passer à clusterProfiler
+  species_to_orgdb <- list(
+    "Homo sapiens"            = org.Hs.eg.db::org.Hs.eg.db,
+    "Mus musculus"            = org.Mm.eg.db::org.Mm.eg.db,
+    "Drosophila melanogaster" = org.Dm.eg.db::org.Dm.eg.db
+  )  
+  
+  # Indicateur d'état du calcul (réactif pour déclencher les updates UI)
+  calculation_running <- reactiveVal(FALSE)
+  
+  # Déclencheur : dès qu'on clique sur le bouton, on signale "en cours"
+  # La priorité haute garantit que ça s'exécute avant ora_results
+  observeEvent(input$run_enrichment, {
+    calculation_running(TRUE)
+  }, priority = 10)
+  
+  ora_results <- eventReactive(input$run_enrichment, {
+    
+    req(input$enrichment_method == "ORA")
+    req(processed_data())
+    req(length(input$go_ontology) > 0)
+    
+    # Active l'état "calcul en cours"
+    calculation_running(TRUE)
+    on.exit(calculation_running(FALSE))
+    
+    # FORCE Shiny à pousser l'état au navigateur AVANT de bloquer
+    session$sendCustomMessage("dummy", list())
+    Sys.sleep(0.05)  # laisse 50ms au navigateur pour rafraîchir
     
     df <- processed_data()
-    
-    cat("\n=== DEBUG Significance ===\n")
-    cat("Valeurs uniques:", unique(df$Significance), "\n")
-    cat("Nombre total de gènes:", nrow(df), "\n")
-    
     significant_genes <- df$GeneName[as.character(df$Significance) != "Not significant"]
     
     if (length(significant_genes) == 0) {
+      shinyalert(
+        title = "Aucun gène significatif",
+        text  = "Aucun gène ne passe les seuils actuels. Ajustez les seuils logFC/p-value et relancez.",
+        type  = "warning"
+      )
       return(NULL)
     }
     
-    label <- ifelse(is.null(input$title_ORA) || input$title_ORA == "", 
-                    "Enrichissement", 
-                    input$title_ORA)
-
-    ego_list <- run_go_enrichment(
-      gene_list = significant_genes, 
-      label = label,
-      org_db = org.Hs.eg.db,  # TODO: adapter selon input$species plus tard
-      ontology = c("BP", "CC", "MF"),
-      p_adj = "BH",
-      q_cutoff = 0.05,
-      key_type = "SYMBOL"
+    # Récupération de l'OrgDb correspondant à l'espèce sélectionnée
+    org_db <- species_to_orgdb[[input$species]]
+    
+    if (is.null(org_db)) {
+      shinyalert(
+        title = "Espèce non supportée",
+        text  = paste0("Aucune base d'annotation disponible pour : ", input$species),
+        type  = "error"
+      )
+      return(NULL)
+    }
+    
+    showNotification(
+      paste0("Calcul ORA en cours sur ", length(input$go_ontology), 
+             " ontologie(s)..."),
+      duration = NULL,
+      id       = "ora_running",
+      type     = "message"
     )
     
-    cat("\n=== Résultats enrichissement ===\n")
-    cat("BP:", nrow(as.data.frame(ego_list$BP)), "termes\n")
-    cat("CC:", nrow(as.data.frame(ego_list$CC)), "termes\n")
-    cat("MF:", nrow(as.data.frame(ego_list$MF)), "termes\n")
+    # Lancement du calcul
+    # withProgress force Shiny à mettre à jour l'UI avant le calcul
+    ego_list <-
+        tryCatch(
+          run_ORA_go(
+            gene_list = significant_genes,
+            label     = "Enrichissement",
+            org_db    = org_db,
+            ontology  = input$go_ontology,
+            p_adj     = "BH",
+            p_cutoff  = 0.05,
+            key_type  = "SYMBOL"
+          ),
+          error = function(e) NULL
+        )
     
-    return(ego_list)
+    
+    removeNotification("ora_running")
+    
+    # Vérification que le mapping a réussi pour au moins une ontologie
+    valid_results <- !sapply(ego_list, is.null)
+    
+    if (!any(valid_results)) {
+      shinyalert(
+        title = "Aucun gène mappé",
+        text  = paste0(
+          "Aucun de vos gènes n'a pu être mappé à la base d'annotation ",
+          "pour l'espèce '", input$species, "'.\n\n",
+          "Vérifiez que l'espèce sélectionnée correspond bien à vos données ",
+          "et que vos identifiants sont des symboles (ex: TP53, BRCA1)."
+        ),
+        type = "error"
+      )
+      return(NULL)
+    }
+    
+    # Si certaines ontologies ont échoué, on les retire de la liste
+    if (!all(valid_results)) {
+      failed <- names(ego_list)[!valid_results]
+      showNotification(
+        paste0("Avertissement : aucun résultat pour ", paste(failed, collapse = ", ")),
+        duration = 6,
+        type     = "warning"
+      )
+      ego_list <- ego_list[valid_results]
+    }
+    
+    showNotification("Calcul ORA terminé", duration = 4, type = "message")
+    
+    ego_list[valid_results]
   })
-  #
-  #
   
-  # Création des plots pour ORA
-  #
-  #
-  create_plot_ORA <- reactive({
-    req(processed_data_ORA())  # S'assure que les données existent avant de créer le plot
+  #####=======================Mise à jour du sélecteur d'ontologie==============
+  
+  # Après chaque calcul ORA, on restreint le selectInput "displayed_ontology"
+  # aux ontologies qui ont effectivement été calculées
+  observeEvent(ora_results(), {
+    available <- names(ora_results())
     
-    # recuperer le Go terme souhaiter par l'utilisateur 
-    ego_list <- processed_data_ORA()
+    # Labels en français pour l'affichage
+    labels_map <- c(
+      "BP" = "Processus Biologique (BP)",
+      "CC" = "Composant Cellulaire (CC)",
+      "MF" = "Fonction Moléculaire (MF)"
+    )
     
-    # selection de l'ontologie choisie (BP, CC ou MF)
-    selected_go <- input$GO  
-    ego <- ego_list[[selected_go]]
-    # recuperer le top_n terme souhaiter par l'utilisateur 
-    top_n <- input$top_n_go
-    # recuperer le titre souhaiter par l'utilisateur 
-    label <- ifelse(is.null(input$title_ORA) || input$title_ORA == "", 
-                    paste0("Enrichissement GO-", selected_go), 
-                    input$title_ORA)
+    choices <- setNames(available, labels_map[available])
     
-    # Fonction custom : génère les différents plot 
-    list_plot_ora <- plot_ORA(ego, label = label, top_n = top_n)
-    
-    return(list_plot_ora)
+    updateSelectInput(
+      session,
+      inputId  = "displayed_ontology",
+      choices  = choices,
+      selected = available[1]
+    )
   })
-  #
-  #
   
+  #####=======================Génération des plots ORA==========================
   
+  # Construit la liste des plots disponibles pour l'ontologie sélectionnée.
+  # Cette étape est légère car elle réutilise l'objet ego déjà calculé.
+  ora_plots <- reactive({
+    req(ora_results())
+    req(input$displayed_ontology)
+    
+    ego <- ora_results()[[input$displayed_ontology]]
+    
+    # Si l'ontologie sélectionnée n'a pas été calculée, on sort
+    if (is.null(ego)) return(NULL)
+    
+    # Titre : celui saisi par l'utilisateur, sinon un titre par défaut
+    label <- if (is.null(input$enrichment_title) || input$enrichment_title == "") {
+      paste0("Enrichissement GO-", input$displayed_ontology)
+    } else {
+      input$enrichment_title
+    }
+    
+    plot_ORA(ego, label = label, top_n = input$top_n_terms)
+  })
   
-  # Condition pour afficher l'image d'erreur (pas de fichier chargé)
-  # Cette fonction reactive retourne TRUE si aucun fichier n'est chargé ou si data n'a pas le bon format  
-
-#modifier ici pour mettre l'erreur propre a ora plot enrichissement
+  #####=======================Affichage de l'erreur enrichissement==============
+  
+  # Affiche l'image d'erreur tant qu'aucun calcul n'a été lancé OU si le résultat est vide
   output$show_enrichment_error <- reactive({
-    is.null(input$file) || is.null(data()) || is.null(processed_data_ORA())
+    is.null(input$deg_file) || 
+      is.null(raw_data()) || 
+      input$run_enrichment == 0
   })
   outputOptions(output, "show_enrichment_error", suspendWhenHidden = FALSE)
   
-  # Image d'erreur pour l'enrichissement
-  output$enrichment_error_img <- renderImage({ 
+  output$enrichment_error_img <- renderImage({
     list(
-      src = "www/erreur_format.jpg",  # TODO faire une image d'erreur
-      contentType = "image/jpeg",      
-      width = "70%",                   
-      height = "auto",                 
-      alt = "Aucun gène significatif ou format du fichier incorrect"
+      src         = "www/erreur_format.jpg",  # TODO : image dédiée à l'enrichissement
+      contentType = "image/jpeg",
+      width       = "70%",
+      height      = "auto",
+      alt         = "Aucun calcul lancé ou aucun résultat disponible"
     )
   }, deleteFile = FALSE)
   
+  #####=======================Rendu du plot d'enrichissement====================
   
-  # Rendu du ora plot interactif avec Plotly
   output$enrichment_plot <- renderPlotly({
-    req(create_plot_ORA())  
     
-    # Fonction custom de création du vplot 
-    list_ora_plot <- create_plot_ORA()
-    
-    #choix du plot
-    selected_plot <- list_ora_plot[[input$Choosen_plot]]
-    
-    # Vérification que le plot existe
-    if (is.null(selected_plot)) {
-      return(NULL)
+    if (is.null(input$deg_file) || is.null(raw_data()) || input$run_enrichment == 0) {
+      return(
+        plotly_empty(type = "scatter", mode = "markers") %>%
+          layout(
+            xaxis = list(visible = FALSE),
+            yaxis = list(visible = FALSE),
+            annotations = list(
+              list(
+                text = "Sélectionner votre méthode d'enrichissement, le(s) ontologie et cliquez sur « Lancer l'enrichissement »",
+                showarrow = FALSE,
+                font = list(size = 16, color = "#666")
+              )
+            )
+          )
+      )
     }
     
-    # Conversion du ggplot en plotly 
-    ggplotly(selected_plot ,tooltip = c("x", "y", "text")) %>%
-      layout(
-        dragmode = "zoom",      
-        hovermode = "closest"   
-      ) %>%
+    req(ora_plots())
+    
+    plot_choice <- if (input$enrichment_method == "ORA") {
+      input$selected_plot_ora
+    } else {
+      input$selected_plot_gsea
+    }
+    
+    selected_plot <- ora_plots()[[plot_choice]]
+    if (is.null(selected_plot)) return(NULL)
+    
+    ggplotly(selected_plot, tooltip = c("x", "y", "text")) %>%
+      layout(dragmode = "zoom", hovermode = "closest") %>%
       config(
-        # Affiche/masque la barre d'outils selon l'input
-        displayModeBar = input$toolbox_ORA,  
-        modeBarButtonsToAdd = list("drawrect", "eraseshape"),
+        displayModeBar = input$enrichment_toolbox,
         modeBarButtonsToRemove = list("toImage"),
         displaylogo = FALSE
       ) %>%
-      # WebGL boost les performances 
-      plotly::toWebGL() 
+      plotly::toWebGL()
   })
   
-  # Téléchargement du volcano plot en PNG
+  #####=======================Statut affiché sous le bouton=====================
+  
+  # Petit texte d'aide qui informe l'utilisateur de l'état du calcul
+  output$enrichment_status <- renderText({
+    if (input$run_enrichment == 0) {
+      return("")  # rien affiché tant qu'aucun calcul lancé
+    }
+    
+    if (calculation_running()) {
+      return("")  # rien pendant le calcul (le spinner suffit)
+    }
+    
+    results <- ora_results()
+    if (is.null(results)) {
+      return("Aucun résultat disponible")
+    }
+    
+    n_ont <- length(results)
+    paste0("Calcul terminé (", n_ont, " ontologie(s))")
+  })
+  
+  #####=======================Téléchargement du plot d'enrichissement===========
+  
   output$downloadEnrichment <- downloadHandler(
     filename = function() {
-      paste0("Enrichissement_", input$Choosen_plot, "_", 
-             input$GO, "_", Sys.Date(), ".png")
+      plot_choice <- if (input$enrichment_method == "ORA") {
+        input$selected_plot_ora
+      } else {
+        input$selected_plot_gsea
+      }
+      paste0("Enrichissement_", plot_choice, "_", 
+             input$displayed_ontology, "_", Sys.Date(), ".png")
     },
     content = function(file) {
-      # Récupère le plot sélectionné
-      list_ora_plot <- create_plot_ORA()
-      selected_plot <- list_ora_plot[[input$Choosen_plot]]
-      # Save le plot
+      plot_choice <- if (input$enrichment_method == "ORA") {
+        input$selected_plot_ora
+      } else {
+        input$selected_plot_gsea
+      }
+      selected_plot <- ora_plots()[[plot_choice]]
       ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
     }
   )
-
+  
 }
