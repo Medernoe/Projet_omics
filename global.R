@@ -1,63 +1,63 @@
-# global.R
+#===========================INSTALLATION AUTOMATIQUE============================
+# Ce bloc vérifie que tous les packages nécessaires sont installés.
+# - Les packages CRAN sont installés via install.packages()
+# - Les packages Bioconductor sont installés via BiocManager::install()
+# Au premier lancement, l'installation peut prendre 15-30 minutes.
 
-# ── Liste des packages requis ──────────────────────────────────────────────────
-packages <- c(
-  # Shiny & UI
+# ---- 1. Liste des packages CRAN ----
+cran_packages <- c(
   "shiny",
   "shinydashboard",
   "waiter",
-  "shinyalert",
-  
-  # Visualisation
   "ggplot2",
-  "plotly",
-  "ggarchery",
-  "enrichplot",
-  
-  # Tableaux
   "DT",
-  
-  # Enrichissement
-  "clusterProfiler",
-  
-  # Annotation (Bioconductor)
-  "org.Hs.eg.db",
-  "org.Mm.eg.db",
-  "org.Dm.eg.db"
+  "plotly",
+  "shinyalert",
+  "ggarchery",
+  "qqman",
+  "dplyr"
 )
 
-# ── Fonction d'installation intelligente ──────────────────────────────────────
-install_if_missing <- function(pkgs) {
-  
-  # Sépare CRAN et Bioconductor
-  bioc_pkgs <- c("clusterProfiler", "enrichplot", "org.Hs.eg.db", "org.Mm.eg.db", "org.Dm.eg.db")
-  cran_pkgs  <- setdiff(pkgs, bioc_pkgs)
-  
-  # Packages non installés
-  missing_cran <- cran_pkgs[!cran_pkgs %in% installed.packages()[, "Package"]]
-  missing_bioc <- bioc_pkgs[!bioc_pkgs %in% installed.packages()[, "Package"]]
-  
-  # Installation CRAN
-  if (length(missing_cran) > 0) {
-    message("📦 Installation CRAN : ", paste(missing_cran, collapse = ", "))
-    install.packages(missing_cran, dependencies = TRUE)
-  }
-  
-  # Installation Bioconductor
-  if (length(missing_bioc) > 0) {
-    message("🧬 Installation Bioconductor : ", paste(missing_bioc, collapse = ", "))
-    if (!requireNamespace("BiocManager", quietly = TRUE)) {
-      install.packages("BiocManager")
+# ---- 2. Liste des packages Bioconductor ----
+bioc_packages <- c(
+  "clusterProfiler",
+  "org.Hs.eg.db",
+  "org.Mm.eg.db",
+  "org.Dm.eg.db",
+  "enrichplot",
+  "ReactomePA",
+  "DOSE"
+)
+
+# ---- 3. Fonction d'installation et de chargement ----
+install_and_load <- function(packages, installer = install.packages) {
+  for (pkg in packages) {
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+      message(paste0("📦 Installation de '", pkg, "' en cours..."))
+      installer(pkg)
     }
-    BiocManager::install(missing_bioc, ask = FALSE)
+    suppressPackageStartupMessages(
+      library(pkg, character.only = TRUE)
+    )
   }
-  
-  message("✅ Tous les packages sont disponibles.")
 }
 
-install_if_missing(packages)
+# ---- 4. Bootstrap : on s'assure que BiocManager est dispo ----
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  message("📦 Installation de BiocManager (gestionnaire Bioconductor)...")
+  install.packages("BiocManager")
+}
 
-# ── Chargement ─────────────────────────────────────────────────────────────────
-invisible(lapply(packages, library, character.only = TRUE))
+# ---- 5. Installation + chargement ----
+message("🔍 Vérification des packages CRAN...")
+install_and_load(cran_packages, installer = install.packages)
 
+message("🔍 Vérification des packages Bioconductor...")
+install_and_load(bioc_packages, installer = BiocManager::install)
+
+message("✅ Tous les packages sont chargés.")
+
+#===========================FIN INSTALLATION====================================
+
+#===========================CHARGEMENT DES FONCTIONS============================
 source("fonctions.R")
