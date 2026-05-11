@@ -131,6 +131,13 @@ function(input, output, session) {
     
     selected_row <- input$deg_table_rows_selected
     
+    w <- make_waiter(
+      id = "volcano_plot",
+      message = "Calcul Pathway GSEA en cours... (plusieurs minutes possibles)"
+    )
+    w$show()
+    on.exit(w$hide())
+    
     plot_volcano(
       data          = processed_data(),
       log2FC_cutoff = fc_threshold_debounced(),
@@ -621,7 +628,7 @@ function(input, output, session) {
     
     # Loader
     w <- make_waiter(
-      id = "go_gsea_plot",
+      id = "pathway_ora_plot",
       message = "Calcul GO GSEA en cours... (plusieurs minutes possibles)"
     )
     w$show()
@@ -810,7 +817,7 @@ function(input, output, session) {
     
     # Loader
     w <- make_waiter(
-      id = "go_gsea_plot",
+      id = "pathway_gsea_plot",
       message = "Calcul GO GSEA en cours... (plusieurs minutes possibles)"
     )
     w$show()
