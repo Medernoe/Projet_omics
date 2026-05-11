@@ -288,7 +288,7 @@ dashboardPage(
                 inputId = "go_ora_selected_plot",
                 label = "Type de visualisation :",
                 choices = c("Dotplot", "Barplot", "Cnetplot", "Emapplot",
-                            "Goplot", "Upsetplot", "Heatplot"),
+                            "Goplot", "Upsetplot", "Heatplot", "Manhattan"),
                 selected = "Dotplot"
               ),
               
@@ -412,7 +412,7 @@ dashboardPage(
                 inputId = "go_gsea_selected_plot",
                 label = "Type de visualisation :",
                 choices = c("Dotplot", "Cnetplot", "Emapplot", "Upsetplot",
-                            "Heatplot", "Ridgeplot", "GSEAplot2", "GSEArank"),
+                            "Heatplot","GSEArank", "Manhattan"),
                 selected = "Dotplot"
               ),
               
@@ -657,7 +657,7 @@ dashboardPage(
                 inputId = "pathway_gsea_selected_plot",
                 label = "Type de visualisation :",
                 choices = c("Dotplot", "Cnetplot", "Emapplot", "Upsetplot",
-                            "Heatplot", "Ridgeplot", "GSEAplot2", "GSEArank"),
+                            "Heatplot", "GSEArank"),
                 selected = "Dotplot"
               ),
               

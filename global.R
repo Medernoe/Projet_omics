@@ -15,7 +15,7 @@ cran_packages <- c(
   "shinyalert",
   "ggarchery",
   "qqman",
-  "dplyr"
+  "dplyr",
 )
 
 # ---- 2. Liste des packages Bioconductor ----

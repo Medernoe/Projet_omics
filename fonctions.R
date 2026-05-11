@@ -502,152 +502,114 @@ generate_gsearank <- function(gse_obj, gene_set_id = 1) {
 #   - p_cutoff : Seuil pour tracer la ligne de significativité # // Lier à l'input utilisateur "p_cutoff"
 #   - cap_y : Valeur maximale pour tronquer l'axe Y (ex: 15) pour éviter que les p-values extrêmes n'écrasent le plot // Optionnel, lier à un numeric input "Y max" ou laisser NULL
 # Sortie : Objet ggplot
-generate_manhattan_plot <- function(enrich_list,
-                                     label       = "Enrichissement fonctionnel",
-                                     p_cutoff    = 0.05,
-                                     top_n_labels = 8L,
-                                     cap_y       = NULL,
-                                     export_path = NULL,
-                                     width       = 3000L,
-                                     height      = 1600L) {
+generate_manhattan_plot <- function(go_results,
+                                    label        = "GO Enrichissement",
+                                    p_cutoff     = 0.05,
+                                    top_n_labels = 8L,
+                                    cap_y        = NULL) {
   
-  
-  # 1) Conversion de la liste d'objets enrichResult en un data.frame 
-  .extract_enrich <- function(obj, source_name) {
+  # 1) Extraction : convertir chaque objet GO en data.frame uniforme
+  .extract_go <- function(obj, ontology_name) {
     if (is.null(obj)) return(NULL)
     df <- tryCatch(as.data.frame(obj), error = function(e) NULL)
     if (is.null(df) || nrow(df) == 0L) return(NULL)
     
-    # Colonnes obligatoires
+    # p.adjust en priorité, sinon pvalue brute
     p_col <- intersect(c("p.adjust", "pvalue"), colnames(df))[1]
     if (is.na(p_col)) return(NULL)
     
-    id_col   <- intersect(c("ID", "id"), colnames(df))[1]
-    desc_col <- intersect(c("Description", "description"), colnames(df))[1]
-    
-    # Taille du gene set
-    if ("Count" %in% colnames(df)) {
-      size_col <- df$Count
+    # Taille du gene set : Count (ORA) ou setSize (GSEA)
+    size_col <- if ("Count" %in% colnames(df)) {
+      df$Count
     } else if ("setSize" %in% colnames(df)) {
-      size_col <- df$setSize
+      df$setSize
     } else {
-      size_col <- rep(1L, nrow(df))
+      rep(1L, nrow(df))
     }
     
     data.frame(
-      term_id    = if (!is.na(id_col))   df[[id_col]]   else paste0(source_name, "_", seq_len(nrow(df))),
-      term_name  = if (!is.na(desc_col)) df[[desc_col]] else rep(NA_character_, nrow(df)),
-      category   = source_name,
+      term_id    = df$ID,
+      term_name  = df$Description,
+      ontology   = ontology_name,
       p_adj      = as.numeric(df[[p_col]]),
       gene_count = as.integer(size_col),
       stringsAsFactors = FALSE
     )
   }
   
-  df_raw <- dplyr::bind_rows(
-    lapply(names(enrich_list), function(nm) .extract_enrich(enrich_list[[nm]], nm))
-  )
+  # 2) Fusion des ontologies disponibles
+  df_raw <- do.call(rbind, lapply(names(go_results), function(ont) {
+    .extract_go(go_results[[ont]], ont)
+  }))
   
-  if (is.null(df_raw) || nrow(df_raw) == 0L) {
-    warning("generate_manhattan_plot2 : aucun résultat exploitable dans enrich_list.")
-    return(invisible(NULL))
-  }
+  if (is.null(df_raw) || nrow(df_raw) == 0L) return(NULL)
   
-  # Retirer les NA et les pvalue non finies
-  df_raw <- df_raw[!is.na(df_raw$p_adj) & is.finite(df_raw$p_adj), ]
-  if (nrow(df_raw) == 0L) {
-    warning("generate_manhattan_plot2 : toutes les p-valeurs sont NA/Inf.")
-    return(invisible(NULL))
-  }
+  # 3) Nettoyage
+  df_raw <- df_raw[!is.na(df_raw$p_adj) & is.finite(df_raw$p_adj) & df_raw$p_adj > 0, ]
+  if (nrow(df_raw) == 0L) return(NULL)
   
-  # 2) qqman (CHR = catégorie, BP = position x, P = pval)
-  categories  <- unique(df_raw$category)
-  cat_index   <- setNames(seq_along(categories), categories)
+  # 4) Force l'ordre BP -> CC -> MF (toujours dans cet ordre, même si certaines manquent)
+  ontology_order <- c("BP", "CC", "MF")
+  df_raw$ontology <- factor(df_raw$ontology, 
+                            levels = intersect(ontology_order, unique(df_raw$ontology)))
   
-  df_plot <- df_raw %>%
-    dplyr::arrange(factor(category, levels = categories), p_adj) %>%
-    dplyr::mutate(
-      CHR = as.integer(cat_index[category]),
-      BP  = dplyr::row_number(),
-      P   = p_adj,
-      SNP = term_id
-    )
-  
+  # 5) Calcul du -log10(p) avec cap éventuel
+  df_raw$neg_log_p <- -log10(df_raw$p_adj)
   if (!is.null(cap_y)) {
-    df_plot$P <- pmax(df_plot$P, 10^(-cap_y))  # tronquer par le bas (p-value très petite = logP élevé)
+    df_raw$neg_log_p <- pmin(df_raw$neg_log_p, cap_y)
   }
   
-  # 3) Couleurs
-  base_colors <- list(
-    c("#1A5FA8", "#5B9BD5"),   # bleu
-    c("#3B6D11", "#72B526"),   # vert
-    c("#7A4200", "#C97E1E"),   # orange
-    c("#6B2B8A", "#A855C8"),   # violet
-    c("#8A1A1A", "#D44B4B"),   # rouge
-    c("#1A6B6B", "#2ABFBF")    # cyan
-  )
-  n_cat    <- length(categories)
-  col_list <- rep(base_colors, length.out = n_cat)
-  col_vec  <- unlist(col_list[seq_len(n_cat)])  # vecteur aplati pour qqman
+  # 6) Position x : on attribue une position au sein de chaque ontologie
+  df_raw <- df_raw[order(df_raw$ontology, df_raw$p_adj), ]
+  df_raw$x_pos <- seq_len(nrow(df_raw))
   
-  # 4) Les tops termes à annoter 
-  top_snps <- df_plot %>%
-    dplyr::filter(P < p_cutoff) %>%
-    dplyr::arrange(P) %>%
-    dplyr::slice_head(n = top_n_labels) %>%
-    dplyr::pull(SNP)
+  # 7) Top termes à annoter
+  top_terms <- df_raw[df_raw$p_adj < p_cutoff, ]
+  top_terms <- top_terms[order(top_terms$p_adj), ]
+  top_terms <- head(top_terms, top_n_labels)
   
-  # 5) Centrer les termes des labels par catégorie existante
-  chr_labels <- df_plot %>%
-    dplyr::group_by(CHR, category) %>%
-    dplyr::summarise(center = mean(BP), .groups = "drop") %>%
-    dplyr::arrange(CHR) %>%
-    dplyr::pull(category)
+  # 8) Centre de chaque ontologie pour positionner les labels d'axe x
+  cat_centers <- aggregate(x_pos ~ ontology, data = df_raw, FUN = mean)
   
+  # 9) Palette fixe pour les 3 ontologies (cohérence visuelle)
+  ontology_colors <- c("BP" = "#1A5FA8",   # bleu
+                       "CC" = "#3B6D11",   # vert
+                       "MF" = "#7A4200")   # orange
   
-  # 6) Fonction interne de rendu (réutilisée pour device et export PNG)
-  .draw <- function() {
-    par(mar = c(5, 5, 4, 2))
-    
-    qqman::manhattan(
-      df_plot,
-      chr              = "CHR",
-      bp               = "BP",
-      p                = "P",
-      snp              = "SNP",
-      col              = col_vec,
-      cex              = 0.85,
-      cex.axis         = 0.85,
-      suggestiveline   = FALSE,
-      genomewideline   = -log10(p_cutoff),
-      highlight        = if (length(top_snps) > 0L) top_snps else NULL,
-      annotatePval     = p_cutoff,
-      annotateTop      = FALSE,
-      chrlabs          = chr_labels,
-      main             = paste0("Manhattan plot — ", label),
-      xlab             = "Catégorie",
-      ylab             = expression(-log[10](p[adj]))
+  # 10) Labels lisibles pour la légende
+  ontology_labels <- c("BP" = "Processus Biologique",
+                       "CC" = "Composant Cellulaire",
+                       "MF" = "Fonction Moléculaire")
+  
+  # 11) Construction du ggplot
+  p <- ggplot(df_raw, aes(x = x_pos, y = neg_log_p, 
+                          color = ontology,
+                          size = gene_count,
+                          text = paste0("Terme : ", term_name,
+                                        "<br>ID : ", term_id,
+                                        "<br>Ontologie : ", ontology,
+                                        "<br>p.adjust : ", signif(p_adj, 3),
+                                        "<br>Gènes : ", gene_count))) +
+    geom_point(alpha = 0.7) +
+    geom_hline(yintercept = -log10(p_cutoff), 
+               linetype = "dashed", color = "red", linewidth = 0.5) +
+    scale_color_manual(values = ontology_colors, 
+                       labels = ontology_labels,
+                       name = "Ontologie GO") +
+    scale_size_continuous(range = c(1.5, 6), name = "Nb gènes") +
+    scale_x_continuous(breaks = cat_centers$x_pos, 
+                       labels = cat_centers$ontology) +
+    labs(
+      title = paste0("Manhattan plot — ", label),
+      x = "Ontologie GO",
+      y = "-log10(p.adjust)"
+    ) +
+    theme_minimal() +
+    theme(
+      panel.grid.major.x = element_blank(),
+      panel.grid.minor   = element_blank(),
+      axis.text.x        = element_text(size = 11, face = "bold")
     )
-    
-    # Légende
-    legend_cols   <- vapply(col_list[seq_len(n_cat)], `[[`, character(1), 2)  # couleur claire de chaque cat
-    legend_labels <- c(categories, paste0("Significatif (FDR < ", p_cutoff, ")"))
-    legend_cols   <- c(legend_cols, "green3")
-    
-    legend(
-      "topright",
-      legend = legend_labels,
-      col    = legend_cols,
-      pch    = 16L,
-      pt.cex = c(rep(1.2, n_cat), 1.4),
-      bty    = "n",
-      cex    = 0.85
-    )
-    
-    if (!is.null(cap_y)) {
-      mtext(paste0("Note : axe Y tronqué à ", cap_y),
-            side = 1, line = 4, adj = 1, cex = 0.75, col = "grey40")
-    }
-  }
+  
+  return(p)
 }
-

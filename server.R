@@ -367,7 +367,10 @@ function(input, output, session) {
                             "Emapplot"  = generate_emapplot(ego, label = label, top_n = top_n),
                             "Goplot"    = generate_goplot(ego, label = label, top_n = top_n),
                             "Upsetplot" = generate_upsetplot(ego, label = label),
-                            "Heatplot"  = generate_heatplot(ego, label = label, top_n = top_n)
+                            "Heatplot"  = generate_heatplot(ego, label = label, top_n = top_n),
+                            "Manhattan" = generate_manhattan_plot(go_results = go_ora_results(),label = label,
+                              p_cutoff     = 0.05,
+                              top_n_labels = min(top_n, 15))
     )
     
     if (is.null(selected_plot)) return(NULL)
