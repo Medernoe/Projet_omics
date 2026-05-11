@@ -229,6 +229,15 @@ function(input, output, session) {
     req(processed_data())
     req(length(input$go_ora_ontology) > 0)
     
+    # Loader sur le plot pendant le calcul
+    w <- make_waiter(
+      id = "go_ora_plot",
+      message = paste0("Calcul GO ORA en cours sur ", 
+                       length(input$go_ora_ontology), " ontologie(s)...")
+    )
+    w$show()
+    on.exit(w$hide())  # Garantit que le loader se cache même en cas d'erreur
+    
     df <- processed_data()
     significant_genes <- get_directional_genes(df, input$go_ora_direction)
     
@@ -405,6 +414,14 @@ function(input, output, session) {
     
     req(processed_data())
     req(length(input$go_gsea_ontology) > 0)
+    
+    # Loader
+    w <- make_waiter(
+      id = "go_gsea_plot",
+      message = "Calcul GO GSEA en cours... (plusieurs minutes possibles)"
+    )
+    w$show()
+    on.exit(w$hide())
     
     ranked <- gsea_ranked()
     if (length(ranked) == 0) {
@@ -602,6 +619,14 @@ function(input, output, session) {
     req(processed_data())
     req(length(input$pathway_ora_databases) > 0)
     
+    # Loader
+    w <- make_waiter(
+      id = "go_gsea_plot",
+      message = "Calcul GO GSEA en cours... (plusieurs minutes possibles)"
+    )
+    w$show()
+    on.exit(w$hide())
+    
     df <- processed_data()
     significant_genes <- get_directional_genes(df, input$pathway_ora_direction)
     
@@ -782,6 +807,14 @@ function(input, output, session) {
     
     req(processed_data())
     req(length(input$pathway_gsea_databases) > 0)
+    
+    # Loader
+    w <- make_waiter(
+      id = "go_gsea_plot",
+      message = "Calcul GO GSEA en cours... (plusieurs minutes possibles)"
+    )
+    w$show()
+    on.exit(w$hide())
     
     ranked <- gsea_ranked()
     if (length(ranked) == 0) {
