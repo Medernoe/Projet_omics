@@ -38,7 +38,7 @@ dashboardPage(
       inputId = "species",
       label = "Choisir une espèce :",
       choices = c("Homo sapiens", "Mus musculus", "Drosophila melanogaster"),
-      selected = "Homo sapiens"
+      selected = "Mus musculus"
     ),
     
     #####===========================Menu============================================

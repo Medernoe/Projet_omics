@@ -409,7 +409,10 @@ function(input, output, session) {
                               "Emapplot"  = generate_emapplot(ego, label = label, top_n = top_n),
                               "Goplot"    = generate_goplot(ego, label = label, top_n = top_n),
                               "Upsetplot" = generate_upsetplot(ego, label = label),
-                              "Heatplot"  = generate_heatplot(ego, label = label, top_n = top_n)
+                              "Heatplot"  = generate_heatplot(ego, label = label, top_n = top_n),
+                              "Manhattan" = generate_manhattan_plot(go_results = go_ora_results(),label = label,
+                                                                    p_cutoff     = 0.05,
+                                                                    top_n_labels = min(top_n, 15))
       )
       ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
     }
@@ -571,7 +574,13 @@ function(input, output, session) {
                             "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
                             "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
                             "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
-                            "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
+                            "GSEArank"  = generate_gsearank(gse, gene_set_id = 1),
+                            "Manhattan" = generate_manhattan_plot(
+                              go_results   = go_gsea_results(),
+                              label        = label,
+                              p_cutoff     = 0.05,
+                              top_n_labels = min(top_n, 15)
+                            )
     )
     
     if (is.null(selected_plot)) return(NULL)
@@ -611,9 +620,10 @@ function(input, output, session) {
                               "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
                               "Upsetplot" = generate_upsetplot(gse, label = label),
                               "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
-                              "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
-                              "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
-                              "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
+                              "GSEArank"  = generate_gsearank(gse, gene_set_id = 1),
+                              "Manhattan" = generate_manhattan_plot(go_results = go_gsea_results(),label = label,
+                                                                    p_cutoff     = 0.05,
+                                                                    top_n_labels = min(top_n, 15))
       )
       ggsave(file, plot = selected_plot, width = 12, height = 8, dpi = 300)
     }
