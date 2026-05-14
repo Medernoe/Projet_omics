@@ -1,11 +1,11 @@
 #===========================Presentation========================================
 # Authors : Noé Méderlet, Mehdi Tachekort, Mathieu Cartier, Valentin Fourdreane
-# contact : noe.mederlet@univ-rouen.fr, mehdi.tachekort@univ-rouen.fr, 
+# contact : noe.mederlet@univ-rouen.fr, mehdi.tachekort@univ-rouen.fr,
 #           mathieu.cartier@univ-rouen.fr, valentin.fourdraine@univ-rouen.fr
 # github : https://github.com/Medernoe/Projet_omics
-# organism : Master Bims M2, université de rouen 
-# project : Création d'une application interactive dédiée à l'analyse de données 
-#           transcriptomiques, développée dans le cadre d'un projet universitaire 
+# organism : Master Bims M2, université de rouen
+# project : Création d'une application interactive dédiée à l'analyse de données
+#           transcriptomiques, développée dans le cadre d'un projet universitaire
 #           du Master 2 de Bioinformatique de l'Université de Rouen.
 #==============================================================================#
 
@@ -15,106 +15,194 @@ source("global.R")
 #=========================SERVEUR==============================================
 
 function(input, output, session) {
-  
-  ####============================INITIALISATION================================
-  
-  # Cache le loader hamster une fois l'app prête
-  waiter::waiter_hide()
-  
-  ####============================CHARGEMENT DES DONNÉES========================
-  
-  # Colonnes minimales requises dans le CSV uploadé
-  required_columns <- c("GeneName", "log2FC", "pval")
-  
-  #####=======================Lecture du fichier CSV============================
-  raw_data <- reactive({
-    req(input$deg_file)
     
-    ext <- tools::file_ext(input$deg_file$name)
-    if (tolower(ext) != "csv") {
-      shinyalert(
-        title = "Format non valide",
-        text  = "Veuillez importer un fichier .csv uniquement.",
-        type  = "error"
-      )
-      return(NULL)
-    }
+    ####============================INITIALISATION================================
     
-    df <- tryCatch(
-      read.csv(input$deg_file$datapath, sep = ";"),
-      error = function(e) {
-        shinyalert(
-          title = "Erreur de lecture",
-          text  = "Impossible de lire le fichier. Vérifiez qu'il s'agit d'un CSV valide.",
-          type  = "error"
+    # Cache le loader hamster une fois l'app prête
+    waiter::waiter_hide()
+    
+    #####=======================Accueil interactif===============================
+    
+    # Initialiser une valeur réactive pour savoir quelle bulle est sélectionnée
+    selected_bubble <- reactiveVal(NULL)
+    
+    # Observer les clics sur les bulles
+    observeEvent(input$btn_deg, {
+        selected_bubble("deg")
+    })
+    
+    observeEvent(input$btn_go, {
+        selected_bubble("go")
+    })
+    
+    observeEvent(input$btn_pathway, {
+        selected_bubble("pathway")
+    })
+    
+    # Générer l'UI de l'explication
+    output$explication_accueil <- renderUI({
+        
+        req(selected_bubble())
+        
+        if (selected_bubble() == "deg") {
+            
+            div(
+                class = "explication-box",
+                
+                h3("I) Inspection des Données (DEG)"),
+                
+                p("Notre application permet une représentation visuelle interactive de vos données d’expression génique via un Volcano Plot dynamique. Cet outil est indispensable pour cibler rapidement les gènes significativement surexprimés ou sous-exprimés."),
+                
+                p("Ajustez en temps réel vos seuils de P-value et de Log2 Fold Change pour affiner vos résultats, et croisez ces visualisations avec notre tableau de données interactif pour une inspection ciblée de vos gènes d’intérêt.")
+            )
+            
+        } else if (selected_bubble() == "go") {
+            
+            div(
+                class = "explication-box",
+                
+                h3("II) Enrichissement de Termes GO"),
+                
+                h4("A) Enrichissement ORA (Over-Representation Analysis)"),
+                
+                p("Grâce à l’intégration des bases de données de la Gene Ontology, identifiez efficacement les termes GO surreprésentés..."),
+                
+                h4("B) Enrichissement GSEA (Gene Set Enrichment Analysis)"),
+                
+                p("Allez plus loin dans l’interprétation en évaluant l’enrichissement sur l’ensemble de votre profil d’expression...")
+            )
+            
+        } else if (selected_bubble() == "pathway") {
+            
+            div(
+                class = "explication-box",
+                
+                h3("III) Analyses d'enrichissement de voies biologiques"),
+                
+                h4("A) Enrichissement KEGG"),
+                
+                p("Allez au-delà des fonctions isolées et cartographiez vos gènes significatifs directement sur les voies métaboliques et de signalisation cellulaires..."),
+                
+                h4("B) Enrichissement REACTOME"),
+                
+                p("Plongez dans un réseau de réactions moléculaires extrêmement détaillé et rigoureusement documenté...")
+            )
+        }
+    })
+    
+    ####============================CHARGEMENT DES DONNÉES========================
+    
+    # Colonnes minimales requises dans le CSV uploadé
+    required_columns <- c("GeneName", "log2FC", "pval")
+    
+    #####=======================Lecture du fichier CSV============================
+    raw_data <- reactive({
+        req(input$deg_file)
+        
+        ext <- tools::file_ext(input$deg_file$name)
+        
+        if (tolower(ext) != "csv") {
+            shinyalert(
+                title = "Format non valide",
+                text  = "Veuillez importer un fichier .csv uniquement.",
+                type  = "error"
+            )
+            return(NULL)
+        }
+        
+        df <- tryCatch(
+            read.csv(input$deg_file$datapath, sep = ";"),
+            error = function(e) {
+                
+                shinyalert(
+                    title = "Erreur de lecture",
+                    text  = "Impossible de lire le fichier. Vérifiez qu'il s'agit d'un CSV valide.",
+                    type  = "error"
+                )
+                
+                return(NULL)
+            }
         )
-        return(NULL)
-      }
+        
+        if (is.null(df)) return(NULL)
+        
+        if (!all(required_columns %in% colnames(df))) {
+            
+            shinyalert(
+                title = "Colonnes manquantes",
+                text  = paste0(
+                    "Le fichier doit contenir les colonnes suivantes : ",
+                    paste(required_columns, collapse = ", ")
+                ),
+                type = "error"
+            )
+            
+            return(NULL)
+        }
+        
+        df
+    })
+    
+    #####=======================Debounce des sliders==============================
+    fc_threshold_debounced     <- debounce(reactive(input$fc_threshold), 300)
+    pvalue_threshold_debounced <- debounce(reactive(input$pvalue_threshold), 300)
+    
+    #####=======================Classification des gènes==========================
+    processed_data <- reactive({
+        
+        if (is.null(raw_data())) return(NULL)
+        
+        significativity(
+            data          = raw_data(),
+            log2FC_cutoff = fc_threshold_debounced(),
+            P_cutoff      = pvalue_threshold_debounced()
+        )
+    })
+    
+    #####=========================MAPPING ESPÈCE -> BASES=========================
+    
+    species_to_orgdb <- list(
+        "Homo sapiens"            = org.Hs.eg.db::org.Hs.eg.db,
+        "Mus musculus"            = org.Mm.eg.db::org.Mm.eg.db,
+        "Drosophila melanogaster" = org.Dm.eg.db::org.Dm.eg.db
     )
     
-    if (is.null(df)) return(NULL)
-    
-    if (!all(required_columns %in% colnames(df))) {
-      shinyalert(
-        title = "Colonnes manquantes",
-        text  = paste0(
-          "Le fichier doit contenir les colonnes suivantes : ",
-          paste(required_columns, collapse = ", ")
-        ),
-        type = "error"
-      )
-      return(NULL)
-    }
-    
-    df
-  })
-  
-  #####=======================Debounce des sliders==============================
-  fc_threshold_debounced     <- debounce(reactive(input$fc_threshold), 300)
-  pvalue_threshold_debounced <- debounce(reactive(input$pvalue_threshold), 300)
-  
-  #####=======================Classification des gènes==========================
-  processed_data <- reactive({
-    if (is.null(raw_data())) return(NULL)
-    
-    significativity(
-      data          = raw_data(),
-      log2FC_cutoff = fc_threshold_debounced(),
-      P_cutoff      = pvalue_threshold_debounced()
+    species_to_kegg <- c(
+        "Homo sapiens"            = "hsa",
+        "Mus musculus"            = "mmu",
+        "Drosophila melanogaster" = "dme"
     )
-  })
-  
-  #####=========================MAPPING ESPÈCE -> BASES=========================
-  
-  species_to_orgdb <- list(
-    "Homo sapiens"            = org.Hs.eg.db::org.Hs.eg.db,
-    "Mus musculus"            = org.Mm.eg.db::org.Mm.eg.db,
-    "Drosophila melanogaster" = org.Dm.eg.db::org.Dm.eg.db
-  )
-  
-  species_to_kegg <- c(
-    "Homo sapiens"            = "hsa",
-    "Mus musculus"            = "mmu",
-    "Drosophila melanogaster" = "dme"
-  )
-  
-  species_to_reactome <- c(
-    "Homo sapiens"            = "human",
-    "Mus musculus"            = "mouse",
-    "Drosophila melanogaster" = "fly"
-  )
-  
-  #####=======================Sélection des gènes par direction=================
-  get_directional_genes <- function(df, direction) {
-    df_sig <- df[as.character(df$Significance) != "Not significant", ]
     
-    if (direction == "up") {
-      return(df_sig$GeneName[as.character(df_sig$Significance) == "Upregulated"])
-    } else if (direction == "down") {
-      return(df_sig$GeneName[as.character(df_sig$Significance) == "Downregulated"])
+    species_to_reactome <- c(
+        "Homo sapiens"            = "human",
+        "Mus musculus"            = "mouse",
+        "Drosophila melanogaster" = "fly"
+    )
+    
+    #####=======================Sélection des gènes par direction=================
+    get_directional_genes <- function(df, direction) {
+        
+        df_sig <- df[as.character(df$Significance) != "Not significant", ]
+        
+        if (direction == "up") {
+            
+            return(
+                df_sig$GeneName[
+                    as.character(df_sig$Significance) == "Upregulated"
+                ]
+            )
+            
+        } else if (direction == "down") {
+            
+            return(
+                df_sig$GeneName[
+                    as.character(df_sig$Significance) == "Downregulated"
+                ]
+            )
+        }
+        
+        df_sig$GeneName
     }
-    df_sig$GeneName
-  }
   
   ####============================ONGLET DEG====================================
   

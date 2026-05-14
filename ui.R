@@ -74,41 +74,85 @@ dashboardPage(
     ####=====================Contenu des onglets====================================
     tabItems(
       
-      #####===========================Accueil=======================================
-      tabItem(
-        tabName = "home",
-        fluidRow(
-          column(
-            width = 12,
-            align = "center",
+        #####===========================Accueil=======================================
+        tabItem(
+            tabName = "home",
             
-            ######==========================Logo============================================
-            tags$img(src = "logo.png", height = "250px"),
-            br(), br(),
+            # 1. CSS Personnalisé
+            tags$head(
+                tags$style(HTML("
+                  .logo-container { text-align: center; margin-bottom: 20px; }
+                  .logo-container img { height: 80px; margin: 0 20px; }
+                  
+                  .bubble-container { display: flex; justify-content: space-around; flex-wrap: wrap; margin-bottom: 30px; }
+                  
+                  .bubble-btn {
+                      width: 250px;
+                      height: 250px;
+                      border-radius: 50%;
+                      border: 4px solid rgba(255, 241, 107, 0.8)!important;
+                      background-color: white;
+                      background-size: cover;
+                      background-position: center;
+                      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                      transition: transform 0.3s, box-shadow 0.3s;
+                      display: flex;
+                      flex-direction: column;
+                      align-items: center;
+                      justify-content: center;
+                      text-align: center;
+                      padding: 20px;
+                      cursor: pointer;
+                  }
+                  .bubble-btn:hover {
+                    transform: scale(1.05); /* Zoom au survol */
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+                  }
+                  .bubble-title {
+                    font-weight: bold; color: #333; background: rgba(255,255,255,0.9);
+                    padding: 8px; border-radius: 5px; margin-top: auto;
+                  }
+                  .explication-box {
+                    background-color: #f9f9f9; border-left: 5px solid rgba(255, 241, 107, 0.8); padding: 20px;
+                    font-size: 16px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                  }
+              "))
+            ),
             
-            ######=====================Titre principal======================================
-            h2("Bienvenue dans l'application interfacée DEGO !"),
-            br(),
+            # 2. Section des Logos (Fac et Master)
+            div(class = "logo-container",
+                tags$img(src = "logouni.png", alt = "Logo Université de Rouen"),
+                tags$img(src = "logomaster.png", alt = "Logo Master BIMS")
+            ),
             
-            ######=====================Présentation=========================================
-            p(strong("DEGO"), "pour", strong("DEG"), "(Differentially Expressed Genes) et", 
-              strong("EGO"), "(Enrichment Gene Ontology), est une application interactive dédiée à l'analyse de données transcriptomiques."),
-            p("Cette application a été développée dans le cadre d'un projet universitaire du",
-              strong("Master 2 de Bioinformatique de l'Université de Rouen"), "."),
-            br(),
+            # 3. Logo principal de l'application
+            div(style = "text-align: center; margin-bottom: 25px;",
+                tags$img(src = "logo-modified.png", alt = "Logo de l'Application", style = "max-height: 250px; max-width: 100%; object-fit: contain;")
+            ),
             
-            ######=====================Informations=========================================
-            p(strong("Réalisée par :"), "Noé Mederlet"),
-            p(strong("GitHub :"), tags$a(href = "https://github.com/Medernoe/Projet_omics", "Lien vers le dépôt", target = "_blank")),
-            p(strong("Contact :"), tags$a(href = "noe.mederlet@univ-rouen.fr", "noe.mederlet@univ-rouen.fr")),
-            br(),
+            # 4. Description introductive traduite
+            div(style = "text-align: center; max-width: 900px; margin: 0 auto 50px auto; padding: 25px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 4px solid #009688;",
+                tags$h3(style = "color: #009688; font-weight: bold; margin-bottom: 20px;", 
+                        "Bienvenue sur Differential expression Gene|GO"),
+                tags$p(style = "font-size: 16px; color: #444; line-height: 1.6;",
+                       "Votre solution complète pour l'analyse de données génomiques globales, l'enrichissement de termes de la Gene Ontology (GO) et l'exploration des voies biologiques (pathways)."),
+                tags$p(style = "font-size: 16px; color: #444; line-height: 1.6;",
+                       "Conçue pour les chercheurs et les biologistes, notre application facilite le processus complexe d'analyse des données transcriptomiques. En identifiant les termes GO significatifs et en révélant les voies enrichies, elle vous aide à propulser vos découvertes scientifiques et à approfondir votre compréhension des fonctions géniques, des processus biologiques et des interactions moléculaires.")
+            ),
             
-            p("Pour plus d'informations sur l'utilisation de l'application, consultez la section ", strong("« Documentation »"), "."),
-            p("Pour en savoir davantage sur le projet, rendez-vous dans la section ", strong("« À propos »"), ".")
-          )
-        )
-      ),
-      
+            # 5. Section des 3 Bulles cliquables
+            div(class = "bubble-container",
+                actionButton("btn_deg", label = div(class="bubble-title", "Inspection & Analyse Différentielle"),
+                             class = "bubble-btn", style = "background-image:linear-gradient(rgba(0,150,136,0.55), rgba(255, 241, 107, 0.8)),url('img_deg.png');"),
+                actionButton("btn_go", label = div(class="bubble-title", "Enrichissement GO"),
+                             class = "bubble-btn", style = "background-image:linear-gradient(rgba(0,150,136,0.55), rgba(255, 241, 107, 0.8)),url('img_go.png');"),
+                actionButton("btn_pathway", label = div(class="bubble-title", "Enrichissement KEGG/Reactome"),
+                             class = "bubble-btn", style = "background-image:linear-gradient(rgba(0,150,136,0.55), rgba(255, 241, 107, 0.8)),url('img_pathway.png');")
+            ),
+            
+            # 6. Zone d'affichage dynamique de l'explication
+            uiOutput("explication_accueil")
+        ),
       
       #####==========================DEG==============================================
       tabItem(
@@ -696,8 +740,135 @@ dashboardPage(
       
       #####=============================Documentation=================================
       tabItem(
-        tabName = "documentation",
-        h2("Coming soon")
+          tabName = "documentation",
+          fluidRow(
+              column(
+                  width = 12,
+                  box(
+                      title = "Documentation Officielle & Guide d'Utilisation",
+                      width = 12,
+                      status = "primary",
+                      solidHeader = TRUE,
+                      
+                      div(style = "padding: 15px;",
+                          
+                          # Introduction
+                          tags$p(style = "font-size: 16px; font-weight: bold; color: #2c3e50;",
+                                 "Bienvenue dans la documentation officielle de DEGO, une application interactive dédiée à l’analyse et à la visualisation de données transcriptomiques. Ce guide vous accompagnera étape par étape dans la préparation de vos données, l’exploration de l’expression différentielle et les analyses d’enrichissement fonctionnel."
+                          ),
+                          tags$hr(),
+                          
+                          # 1. Démarrage et Importation
+                          tags$h3(icon("upload"), " 1. Démarrage et Importation des Données"),
+                          tags$p("Pour garantir le bon fonctionnement de l’application, vos données doivent respecter un formatage précis avant d’être importées."),
+                          
+                          tags$h4(tags$strong("Préparation de votre fichier CSV")),
+                          tags$p("Exportez vos données transcriptomiques (par exemple, issues de DESeq2 ou EdgeR) au format CSV avec un séparateur point-virgule (;). Votre fichier doit obligatoirement contenir les colonnes nommées exactement de la manière suivante :"),
+                          tags$ul(
+                              tags$li(tags$code("GeneName"), " : Le symbole officiel du gène (ex: TP53, BRCA1). ", tags$i("Attention : le format SYMBOL est requis pour que l’enrichissement fonctionne correctement.")),
+                              tags$li(tags$code("log2FC"), " : Le Log2 Fold Change, indiquant le niveau de surexpression ou de sous-expression du gène."),
+                              tags$li(tags$code("pval"), " : La p-value (ou p-value ajustée), représentant la significativité statistique de l’expression différentielle.")
+                          ),
+                          
+                          tags$h4(tags$strong("Choix de l’organisme")),
+                          tags$p("Dans le panneau latéral de gauche, utilisez le menu déroulant pour sélectionner l’organisme modèle correspondant à vos données. Les organismes actuellement supportés sont :"),
+                          tags$ul(
+                              tags$li(tags$i("Homo sapiens"), " (Humain)"),
+                              tags$li(tags$i("Mus musculus"), " (Souris)"),
+                              tags$li(tags$i("Drosophila melanogaster"), " (Mouche drosophile)")
+                          ),
+                          tags$p("Une fois l’organisme sélectionné, importez votre fichier CSV via le bouton ", tags$strong("Choisir fichier DEG"), ". L’application vérifiera automatiquement l’intégrité de vos données."),
+                          tags$hr(),
+                          
+                          # 2. Inspection DEG
+                          tags$h3(icon("magnifying-glass-chart"), " 2. Inspection des Données (Onglet DEG)"),
+                          tags$p("Cette section vous permet d’explorer visuellement et tabulairement vos gènes différentiellement exprimés."),
+                          
+                          tags$h4(tags$strong("Volcano Plot Interactif")),
+                          tags$p("Le Volcano Plot offre une vue globale de l’expression différentielle. Chaque point représente un gène."),
+                          tags$ul(
+                              tags$li(tags$strong("Seuils dynamiques : "), "Utilisez les curseurs situés à droite pour ajuster en temps réel le seuil de Log2 FC et le seuil de P-value. Les gènes significatifs seront automatiquement mis en évidence (rouge pour surexprimés, bleu pour sous-exprimés, gris pour non significatifs)."),
+                              tags$li(tags$strong("Lignes de repère : "), "Vous pouvez activer ou désactiver l’affichage des lignes horizontales et verticales marquant vos seuils de coupure."),
+                              tags$li(tags$strong("Interactivité : "), "Au survol d’un point, le nom du gène et ses valeurs exactes s’affichent."),
+                              tags$li(tags$strong("Barre d’outils (ToolBox) : "), "Une boîte à outils activable permet de zoomer, sélectionner une zone ou réinitialiser la vue.")
+                          ),
+                          
+                          tags$h4(tags$strong("Tableau de Données et Mise en Évidence")),
+                          tags$p("Sous le graphique se trouve un tableau interactif listant vos gènes."),
+                          tags$p(tags$strong(icon("lightbulb"), " Astuce : "), "Si vous cliquez sur une ligne spécifique du tableau, le gène correspondant sera mis en surbrillance (point violet et étiquette textuelle) directement sur le Volcano Plot."),
+                          tags$hr(),
+                          
+                          # 3. Enrichissement ORA
+                          tags$h3(icon("chart-pie"), " 3. Enrichissement ORA (Over-Representation Analysis)"),
+                          tags$p("L’analyse ORA permet de déterminer si certains termes de la Gene Ontology (GO) sont statistiquement surreprésentés parmi vos gènes significativement différentiels (filtrés selon les seuils choisis dans l’onglet DEG)."),
+                          
+                          tags$h4(tags$strong("Paramétrage")),
+                          tags$ul(
+                              tags$li(tags$strong("Ontologie GO : "), "Sélectionnez une ou plusieurs catégories à analyser : Processus Biologique (BP), Composant Cellulaire (CC), Fonction Moléculaire (MF)."),
+                              tags$li(tags$strong("Lancement : "), "Cliquez sur le bouton vert ", tags$strong("Lancer l’enrichissement ORA"), ". ", tags$i("Note : Le calcul peut prendre quelques secondes selon le nombre de gènes."))
+                          ),
+                          
+                          tags$h4(tags$strong("Visualisation")),
+                          tags$p("Une fois le calcul terminé, vous pouvez explorer les résultats via un menu déroulant proposant plusieurs représentations graphiques :"),
+                          tags$ul(
+                              tags$li(tags$strong("Dotplot : "), "Affiche les termes enrichis sous forme de bulles (taille = nombre de gènes, couleur = significativité)."),
+                              tags$li(tags$strong("Barplot / Goplot : "), "Diagrammes classiques des termes les plus représentés."),
+                              tags$li(tags$strong("Cnetplot : "), "Réseau reliant les termes GO aux gènes associés, permettant de voir les gènes partagés entre différentes voies."),
+                              tags$li(tags$strong("Emapplot : "), "Carte de similarité regroupant les termes GO fonctionnellement proches."),
+                              tags$li(tags$strong("Upsetplot : "), "Visualise les intersections complexes de gènes entre différents termes GO."),
+                              tags$li(tags$strong("Heatplot : "), "Heatmap reliant les gènes aux termes GO.")
+                          ),
+                          tags$p("Vous pouvez ajuster le nombre de termes à afficher via le curseur dédié et télécharger la figure générée en haute résolution."),
+                          tags$hr(),
+                          
+                          # 4. Enrichissement GSEA
+                          tags$h3(icon("chart-line"), " 4. Enrichissement GSEA (Gene Set Enrichment Analysis)"),
+                          tags$p("Contrairement à l’ORA qui se base sur un seuil strict, l’analyse GSEA prend en compte l’ensemble de vos gènes, classés par ordre décroissant selon leur Log2FC. Cela permet de détecter des variations d’expression subtiles mais coordonnées au sein d’une même voie biologique."),
+                          
+                          tags$h4(tags$strong("Paramétrage et Lancement")),
+                          tags$p("Le fonctionnement est similaire à l’onglet ORA. Sélectionnez vos ontologies (BP, CC, MF) et lancez l’analyse. ", tags$i("L’algorithme GSEA étant plus lourd, le temps de calcul peut s’étendre à quelques minutes.")),
+                          
+                          tags$h4(tags$strong("Visualisation Spécifique")),
+                          tags$p("En plus des graphiques communs avec l’ORA (Dotplot, Cnetplot, Emapplot, etc.), le module GSEA propose des visualisations expertes :"),
+                          tags$ul(
+                              tags$li(tags$strong("Ridgeplot : "), "Montre la distribution des Log2FC pour les gènes appartenant aux termes GO enrichis."),
+                              tags$li(tags$strong("GSEAplot2 : "), "Affiche le score d’enrichissement classique (“running score”) pour plusieurs voies simultanément."),
+                              tags$li(tags$strong("GSEArank : "), "Permet d’isoler le graphique de score (enrichment plot) pour une voie spécifique.")
+                          ),
+                          tags$hr(),
+                          
+                          # 5. Structure Technique
+                          tags$h3(icon("cogs"), " 5. Structure Technique de l’Application"),
+                          tags$p("L’application DEGO a été développée en R dans le cadre du Master 2 Bioinformatique de l’Université de Rouen. Elle repose sur une architecture modulaire pour faciliter sa maintenance et sa scalabilité."),
+                          
+                          tags$h4(tags$strong("Fichiers Sources")),
+                          tags$ul(
+                              tags$li(tags$code("ui.R"), " / ", tags$code("server.R"), " : Gèrent respectivement l’interface utilisateur et la logique réactive du serveur."),
+                              tags$li(tags$code("global.R"), " : Initialise l’environnement, charge les bibliothèques et source les dépendances."),
+                              tags$li(tags$code("fonctions.R"), " : Contient toute la logique métier abstraite (fonctions de nettoyage, calculs statistiques, algorithmes GSEA/ORA et création des objets graphiques).")
+                          ),
+                          
+                          tags$h4(tags$strong("Dépendances et Librairies Utilisées")),
+                          tags$p("Le bon fonctionnement de DEGO repose sur les packages suivants :"),
+                          
+                          tags$h5(icon("r-project"), " Packages CRAN (Interface, Traitement & Visualisation) :"),
+                          tags$p(
+                              tags$code("shiny"), " ", tags$code("shinydashboard"), " ", tags$code("waiter"), " ", 
+                              tags$code("ggplot2"), " ", tags$code("DT"), " ", tags$code("plotly"), " ", 
+                              tags$code("shinyalert"), " ", tags$code("ggarchery"), " ", tags$code("qqman"), " ", 
+                              tags$code("dplyr")
+                          ),
+                          
+                          tags$h5(icon("dna"), " Packages Bioconductor (Analyse Transcriptomique & Ontologies) :"),
+                          tags$p(
+                              tags$code("clusterProfiler"), " ", tags$code("org.Hs.eg.db"), " ", 
+                              tags$code("org.Mm.eg.db"), " ", tags$code("org.Dm.eg.db"), " ", 
+                              tags$code("enrichplot"), " ", tags$code("ReactomePA"), " ", tags$code("DOSE")
+                          )
+                      )
+                  )
+              )
+          )
       ),
       
       #####============================À PROPOS=======================================
@@ -714,7 +885,7 @@ dashboardPage(
                 
                 # --- Logo centré ---
                 div(style = "text-align: center; margin-bottom: 30px;",
-                    tags$img(src = "logo.png", height = "150px")
+                    tags$img(src = "logo-modified.png", height = "150px")
                 ),
                 
                 tags$h3("Le projet DEGO"),
