@@ -709,10 +709,73 @@ dashboardPage(
             width = 12,
             status = "primary",
             solidHeader = TRUE,
-            includeHTML("www/about.html")
+            
+            div(class = "about_description", style = "padding: 15px;",
+                
+                # --- Version et Année universitaire ---
+                div(style = "text-align: right; color: #666; font-style: italic; font-size: 0.9em;",
+                    "Version 1.1.0 — Année universitaire 2024-2025"
+                ),
+                br(),
+                
+                tags$h3("Le projet DEGO"),
+                tags$p("DEGO (Differentially Expressed Genes & Enrichment Gene Ontology) est une application interactive que nous avons développée pour faciliter l'analyse de données transcriptomiques. Elle permet d'explorer facilement les gènes différentiellement exprimés (DEG) et de réaliser des analyses d'enrichissement (GO, KEGG, Reactome) via des approches ORA et GSEA."),
+                
+                tags$h3("Code source et documentation"),
+                tags$p("Le projet est entièrement open-source. Vous pouvez retrouver le code, la documentation détaillée et des jeux de données d'exemple directement sur notre dépôt GitHub :"),
+                tags$a(href = "https://github.com/Medernoe/Projet_omics", target = "_blank", "https://github.com/Medernoe/Projet_omics"),
+                
+                tags$h3("L'équipe"),
+                tags$p("Cette application a été pensée et développée par notre groupe de 4 étudiants en Master 2 Bioinformatique et Modélisation (BIMS) à l'Université de Rouen Normandie :"),
+                tags$ul(
+                  tags$li(tags$strong("Noé Méderlet : "), tags$a(href="mailto:noe.mederlet@univ-rouen.fr", "noe.mederlet@univ-rouen.fr")),
+                  tags$li(tags$strong("Mehdi Tachekort : "), tags$a(href="mailto:mehdi.tachekort@univ-rouen.fr", "mehdi.tachekort@univ-rouen.fr")),
+                  tags$li(tags$strong("Mathieu Cartier : "), tags$a(href="mailto:mathieu.cartier@univ-rouen.fr", "mathieu.cartier@univ-rouen.fr")),
+                  tags$li(tags$strong("Valentin Fourdraine : "), tags$a(href="mailto:valentin.fourdraine@univ-rouen.fr", "valentin.fourdraine@univ-rouen.fr"))
+                ),
+                
+                tags$h3("Détails techniques"),
+                tags$p("L'application est développée en R et utilise les bibliothèques ", tags$code("shiny"), " et ", tags$code("shinydashboard"), " pour son interface utilisateur. Pour la fluidité de l'expérience, nous utilisons également des modules comme ", tags$code("shinyalert"), " et ", tags$code("waiter"), " pour gérer les temps de chargement et les notifications."),
+                tags$p("Concernant le traitement des données et l'analyse bioinformatique, l'application s'appuie sur des packages de référence de la communauté Bioconductor. L'analyse d'enrichissement (ORA et GSEA) est notamment réalisée via ", tags$code("clusterProfiler"), " et ", tags$code("ReactomePA"), ". Les conversions d'identifiants entre espèces et l'accès aux ontologies sont gérés de manière dynamique par les bases de données d'annotation spécifiques (", tags$code("org.Hs.eg.db"), ", ", tags$code("org.Mm.eg.db"), ", et ", tags$code("org.Dm.eg.db"), ")."),
+                tags$p("Enfin, les visualisations graphiques reposent fortement sur ", tags$code("enrichplot"), " pour la construction des graphes biologiques (Cnetplot, Emapplot, etc.), combiné à ", tags$code("ggplot2"), " pour les représentations plus poussées, comme nos versions personnalisées du Volcano plot et du Manhattan plot. L'interactivité des figures et des tableaux d'exploration est quant à elle assurée par ", tags$code("plotly"), " et ", tags$code("DT"), "."),
+                
+                # --- Citations et Références ---
+                tags$h3("Références"),
+                tags$p("Nous nous sommes appuyés sur plusieurs publications scientifiques et méthodes de référence pour le développement de cette application :"),
+                tags$ul(
+                  tags$li(
+                    tags$strong("Over-representation analysis (ORA) : "), "Nguyen, T. M., et al. (2019). ", 
+                    tags$em("Over-representation analysis: a comprehensive review."), 
+                    " BMC Bioinformatics. ", 
+                    tags$a(href="https://doi.org/10.1186/s12859-019-2710-2", target="_blank", "[DOI: 10.1186/s12859-019-2710-2]")
+                  ),
+                  tags$li(
+                    tags$strong("Méthode GSEA : "), "Subramanian A, et al. (2005). ", 
+                    tags$em("Gene set enrichment analysis: A knowledge-based approach for interpreting genome-wide expression profiles."), 
+                    " PNAS. ", 
+                    tags$a(href="https://doi.org/10.1073/pnas.0506580102", target="_blank", "[DOI: 10.1073/pnas.0506580102]")
+                  ),
+                  tags$li(
+                    tags$strong("clusterProfiler 4.0 : "), "Wu T, et al. (2021). ", 
+                    tags$em("clusterProfiler 4.0: A universal enrichment tool for interpreting omics data."), 
+                    " The Innovation. ", 
+                    tags$a(href="https://doi.org/10.1016/j.xinn.2021.100141", target="_blank", "[DOI: 10.1016/j.xinn.2021.100141]")
+                  ),
+                  tags$li(
+                    tags$strong("ReactomePA : "), "Yu G & He QY (2016). ", 
+                    tags$em("ReactomePA: an R/Bioconductor package for reactome pathway analysis and visualization."), 
+                    " Molecular BioSystems. ", 
+                    tags$a(href="https://doi.org/10.1039/C5MB00663E", target="_blank", "[DOI: 10.1039/C5MB00663E]")
+                  )
+                ),
+                
+                tags$h3("Remerciements"),
+                tags$p("Ce projet a été réalisé dans le cadre de notre formation. Un grand merci à nos encadrantes, Hélène Dauchel et Solène Pety, pour leur aide et leurs conseils tout au long du développement !")
+            )
           )
         )
       )
     )
   )
 )
+    
