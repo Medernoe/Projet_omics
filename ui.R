@@ -31,7 +31,7 @@ dashboardPage(
     #####=======================Input fichier=======================================
     fileInput("deg_file", "Choisir fichier DEG :"),
     
-
+    
     
     #####======================Sélection organisme==================================
     selectInput(
@@ -261,7 +261,7 @@ dashboardPage(
               width = 12,
               status = "primary",
               solidHeader = TRUE,
-              plotlyOutput("go_ora_plot", height = "500px"),
+              uiOutput("ui_go_ora_plot"), # UI OUTPUT ICI
               downloadButton("downloadGoOra", "Télécharger")
             ),
             
@@ -385,7 +385,7 @@ dashboardPage(
               width = 12,
               status = "primary",
               solidHeader = TRUE,
-              plotlyOutput("go_gsea_plot", height = "500px"),
+              uiOutput("ui_go_gsea_plot"), # UI OUTPUT ICI
               downloadButton("downloadGoGsea", "Télécharger")
             ),
             
@@ -508,7 +508,7 @@ dashboardPage(
               width = 12,
               status = "primary",
               solidHeader = TRUE,
-              plotlyOutput("pathway_ora_plot", height = "500px"),
+              uiOutput("ui_pathway_ora_plot"), # UI OUTPUT ICI
               downloadButton("downloadPathwayOra", "Télécharger")
             ),
             
@@ -630,7 +630,7 @@ dashboardPage(
               width = 12,
               status = "primary",
               solidHeader = TRUE,
-              plotlyOutput("pathway_gsea_plot", height = "500px"),
+              uiOutput("ui_pathway_gsea_plot"), # UI OUTPUT ICI
               downloadButton("downloadPathwayGsea", "Télécharger")
             ),
             
@@ -712,11 +712,10 @@ dashboardPage(
             
             div(class = "about_description", style = "padding: 15px;",
                 
-                # --- Version et Année universitaire ---
-                div(style = "text-align: right; color: #666; font-style: italic; font-size: 0.9em;",
-                    "Version 1.1.0 — Année universitaire 2024-2025"
+                # --- Logo centré ---
+                div(style = "text-align: center; margin-bottom: 30px;",
+                    tags$img(src = "logo.png", height = "150px")
                 ),
-                br(),
                 
                 tags$h3("Le projet DEGO"),
                 tags$p("DEGO (Differentially Expressed Genes & Enrichment Gene Ontology) est une application interactive que nous avons développée pour faciliter l'analyse de données transcriptomiques. Elle permet d'explorer facilement les gènes différentiellement exprimés (DEG) et de réaliser des analyses d'enrichissement (GO, KEGG, Reactome) via des approches ORA et GSEA."),
@@ -733,6 +732,10 @@ dashboardPage(
                   tags$li(tags$strong("Mathieu Cartier : "), tags$a(href="mailto:mathieu.cartier@univ-rouen.fr", "mathieu.cartier@univ-rouen.fr")),
                   tags$li(tags$strong("Valentin Fourdraine : "), tags$a(href="mailto:valentin.fourdraine@univ-rouen.fr", "valentin.fourdraine@univ-rouen.fr"))
                 ),
+                
+                # --- Section Demande d'ajout d'espèces ---
+                tags$h3("Besoin d'une autre espèce ?"),
+                tags$p("L'application intègre actuellement les annotations pour l'Humain, la Souris et la Drosophile. Si vous travaillez sur un organisme différent et que vous souhaitez utiliser notre outil, n'hésitez pas à nous envoyer un e-mail ! Nous serons ravis d'ajouter votre espèce d'intérêt lors d'une prochaine mise à jour."),
                 
                 tags$h3("Détails techniques"),
                 tags$p("L'application est développée en R et utilise les bibliothèques ", tags$code("shiny"), " et ", tags$code("shinydashboard"), " pour son interface utilisateur. Pour la fluidité de l'expérience, nous utilisons également des modules comme ", tags$code("shinyalert"), " et ", tags$code("waiter"), " pour gérer les temps de chargement et les notifications."),
@@ -778,4 +781,3 @@ dashboardPage(
     )
   )
 )
-    
