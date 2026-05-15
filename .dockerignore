@@ -1,0 +1,14 @@
+.git
+.gitignore
+.Rproj.user
+.Rhistory
+.RData
+.Rprofile
+renv/library/
+renv/python/
+renv/staging/
+renv/.gitignore
+renv/git
+renv/settings.json
+README.md
+exemple.csv
