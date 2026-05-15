@@ -29,11 +29,11 @@ bioc_packages <- c(
   "DOSE"
 )
 
-# ---- 3. Fonction d'installation et de chargement ----
+# ---- Fonction d'installation et de chargement ----
 install_and_load <- function(packages, installer = install.packages) {
   for (pkg in packages) {
     if (!requireNamespace(pkg, quietly = TRUE)) {
-      message(paste0("📦 Installation de '", pkg, "' en cours..."))
+      message(paste0("Installation de '", pkg, "' en cours..."))
       installer(pkg)
     }
     suppressPackageStartupMessages(
@@ -42,20 +42,20 @@ install_and_load <- function(packages, installer = install.packages) {
   }
 }
 
-# ---- 4. Bootstrap : on s'assure que BiocManager est dispo ----
+# ---- Verification que BiocManager est dispo ----
 if (!requireNamespace("BiocManager", quietly = TRUE)) {
-  message("📦 Installation de BiocManager (gestionnaire Bioconductor)...")
+  message("Installation de BiocManager (gestionnaire Bioconductor)...")
   install.packages("BiocManager")
 }
 
-# ---- 5. Installation + chargement ----
-message("🔍 Vérification des packages CRAN...")
+# ---- Installation + chargement ----
+message("Vérification des packages CRAN...")
 install_and_load(cran_packages, installer = install.packages)
 
-message("🔍 Vérification des packages Bioconductor...")
+message("Vérification des packages Bioconductor...")
 install_and_load(bioc_packages, installer = BiocManager::install)
 
-message("✅ Tous les packages sont chargés.")
+message("Tous les packages sont chargés.")
 
 #===========================FIN INSTALLATION====================================
 
@@ -63,9 +63,6 @@ message("✅ Tous les packages sont chargés.")
 source("fonctions.R")
 
 ####============================WAITER HELPERS===============================
-
-# Le HTML du hamster loader (dupliqué depuis ui.R car le server n'y a pas accès)
-# Si tu veux éviter la duplication, déplace cette variable dans global.R
 hamster_loader_server <- HTML('
 <div aria-label="Hamster loader" role="img" class="wheel-and-hamster">
   <div class="wheel"></div>
@@ -88,7 +85,7 @@ hamster_loader_server <- HTML('
 ')
 
 # Fabrique un Waiter qui s'affiche pendant un calcul lourd
-# - id : ID de l'output sur lequel afficher le loader (ex: "go_ora_plot")
+# - id : ID de l'output sur lequel afficher le loader
 #        Si NULL, le loader est plein écran
 # - message : message texte affiché sous le hamster
 make_waiter <- function(id = NULL, message = "Calcul en cours...") {
@@ -98,6 +95,6 @@ make_waiter <- function(id = NULL, message = "Calcul en cours...") {
       hamster_loader_server,
       tags$h4(message, style = "color: #009688; margin-top: 20px; text-align: center;")
     ),
-    color = "rgba(255, 255, 255, 0.85)"  # fond semi-transparent
+    color = "rgba(255, 255, 255, 0.85)" 
   )
 }

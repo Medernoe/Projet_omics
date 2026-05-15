@@ -350,7 +350,7 @@ function(input, output, session) {
     on.exit(session$sendCustomMessage("stopMusic", list()), add = TRUE)
     
     # On lance ORA sur TOUS les gènes significatifs (up + down) pour permettre
-    # un filtrage post-hoc par direction sans recalcul.
+    # un filtrage post par direction sans recalcul.
     significant_genes <- get_directional_genes(processed_data(), "both")
     
     if (length(significant_genes) == 0) {
@@ -596,7 +596,7 @@ function(input, output, session) {
     req(processed_data())
     req(length(input$go_gsea_ontology) > 0)
     
-    # POINT 7 : bloquer GSEA si aucun gène ne passe les seuils de significativité.
+    # bloquer GSEA si aucun gène ne passe les seuils de significativité.
     # Même si GSEA travaille sur le ranking complet, on aligne le comportement
     # avec ORA pour éviter un calcul long sur des données qui ne porteraient
     # aucune significativité biologique.
@@ -1007,7 +1007,7 @@ function(input, output, session) {
     req(processed_data())
     req(length(input$pathway_gsea_databases) > 0)
     
-    # POINT 7 (Pathway GSEA) : même garde-fou que pour GO GSEA
+    #  Pathway GSEA : même garde-fou que pour GO GSEA
     sig_genes <- get_directional_genes(processed_data(), "both")
     if (length(sig_genes) == 0) {
       shinyalert(title = "Aucun gène significatif",
@@ -1098,9 +1098,6 @@ function(input, output, session) {
     gse <- pathway_gsea_results()[[input$pathway_gsea_displayed_db]]
     if (is.null(gse)) return(NULL)
     
-    # La box "Direction des pathways (NES)" a été retirée de l'UI :
-    # plus de filtrage post-hoc up/down ici (input$pathway_gsea_direction n'existe plus).
-    
     label <- if (is.null(input$pathway_gsea_title) || input$pathway_gsea_title == "") paste0("Pathway GSEA - ", input$pathway_gsea_displayed_db) else input$pathway_gsea_title
     top_n <- input$pathway_gsea_top_n_terms
     
@@ -1160,9 +1157,6 @@ function(input, output, session) {
   )
   
   #####=======================Tableau Pathway GSEA (liens KEGG/Reactome)=======
-  # Signature des objets GSEA : NES, enrichmentScore, setSize, leading_edge, core_enrichment.
-  # core_enrichment liste les gènes du "leading edge subset" (ceux qui contribuent
-  # le plus au signal d'enrichissement avant le pic du running score).
   output$pathway_gsea_table <- renderDT({
     req(pathway_gsea_results(), input$pathway_gsea_displayed_db)
     

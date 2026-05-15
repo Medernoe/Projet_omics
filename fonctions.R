@@ -415,7 +415,9 @@ generate_upsetplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10)
 generate_heatplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
   p <- enrichplot::heatplot(enrich_obj, showCategory = top_n) +
     ggplot2::ggtitle(paste0("Heatmap Gènes-Termes – ", label)) +
-    ggplot2::theme_minimal()
+    ggplot2::theme_minimal() +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, vjust = 0.5, hjust = 1))
+  
   return(p)
 }
 

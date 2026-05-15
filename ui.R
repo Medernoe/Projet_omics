@@ -846,7 +846,6 @@ dashboardPage(
                 min = 5, max = 50, value = 10, step = 5, width = "100%"
               )
             )
-            # Pas de box "Niveaux d'expressions" pour GSEA (volontairement retiré)
           )
         ),
         
