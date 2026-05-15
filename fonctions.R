@@ -396,8 +396,10 @@ generate_emapplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) 
 #   - enrich_obj : Objet de résultat (ORA ou GSEA)
 #   - label : Titre du graphique
 # Sortie : Objet ggplot / upset
-generate_upsetplot <- function(enrich_obj, label = 'Enrichissement') {
-  p <- enrichplot::upsetplot(enrich_obj) +
+generate_upsetplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
+  # n contrôle le nombre de catégories (termes GO) affichées dans l'upsetplot.
+  # Sans ce paramètre, enrichplot utilise une valeur par défaut indépendante du slider UI.
+  p <- enrichplot::upsetplot(enrich_obj, n = top_n) +
     ggplot2::ggtitle(paste0("Intersections des gènes – ", label)) +
     ggplot2::theme_minimal()
   return(p)
