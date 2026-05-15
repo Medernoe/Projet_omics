@@ -1,7 +1,7 @@
-# 1. Image de base
+# Image par défaut pré construite de R + shiny
 FROM rocker/shiny:4.4.2
 
-# 2. Dépendances système Linux
+# Dépendances système Linux
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libssl-dev \
@@ -20,14 +20,14 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. Création du dossier de l'app
+# Création du dossier de l'app
 WORKDIR /app
 
-# 4. Installation de BiocManager (sans forcer le repo)
+# Installation de BiocManager (sans forcer le repo)
 RUN R -e "install.packages('BiocManager')"
 
-# 5. Installation groupée de TOUS les packages via BiocManager
-# BiocManager va piocher dans le bon snapshot CRAN de Rocker et dans Bioconductor 3.20
+# Installation groupée de tous les packages via BiocManager
+#option pour afficher les erreurs et stopper la construction de l'image
 RUN R -e "options(warn=2); BiocManager::install(c( \
     'shinydashboard', 'waiter', 'ggplot2', 'DT', 'plotly', \
     'shinyalert', 'ggarchery', 'qqman', 'dplyr', \
@@ -35,9 +35,9 @@ RUN R -e "options(warn=2); BiocManager::install(c( \
     'enrichplot', 'ReactomePA', 'DOSE', 'ggtree' \
     ), ask = FALSE, update = FALSE)"
 
-# 6. Copie des fichiers de votre application
+# Copie des fichiers de l'application
 COPY . /app
 
-# 7. Exposition du port et lancement
+# Exposition du port et lancement
 EXPOSE 3838
 CMD ["R", "-e", "shiny::runApp('/app', host = '0.0.0.0', port = 3838)"]
