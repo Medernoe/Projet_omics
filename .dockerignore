@@ -4,11 +4,7 @@
 .Rhistory
 .RData
 .Rprofile
-renv/library/
-renv/python/
-renv/staging/
-renv/.gitignore
-renv/git
-renv/settings.json
+renv/
 README.md
 exemple.csv
+renv.lock
