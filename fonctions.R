@@ -448,53 +448,6 @@ generate_goplot <- function(enrich_obj, label = 'Enrichissement', top_n = 10) {
   return(p)
 }
 
-
-
-# ----- GSEA specific ----- 
-# Plot : Ridgeplot
-# Entrée : 
-#   - gse_obj : Objet de résultat (Uniquement GSEA) // Afficher uniquement si l'utilisateur choisit GSEA
-#   - label : Titre du graphique
-#   - top_n : Nombre de catégories à afficher
-# Sortie : Objet ggplot
-generate_ridgeplot <- function(gse_obj, label = 'GSEA', top_n = 10) {
-  p <- enrichplot::ridgeplot(gse_obj, showCategory = top_n) +
-    ggplot2::ggtitle(paste0("Ridgeplot (Distribution log2FC) – ", label)) +
-    ggplot2::theme_minimal()
-  return(p)
-}
-
-
-# Plot : GSEA Plot (Type 2 - Multiples pathways)
-# Entrée : 
-#   - gse_obj : Objet de résultat (Uniquement GSEA) // Afficher uniquement si l'utilisateur choisit GSEA
-#   - gene_set_ids : Vecteur d'indices des pathways à afficher (ex: 1:3 pour les 3 premiers) // Lier à une sélection multiple au front
-#   - show_pvalue : Afficher ou non la table des p-values // Lier à une checkbox au front
-# Sortie : Objet ggplot complexe
-generate_gseaplot2 <- function(gse_obj, gene_set_ids = 1:3, show_pvalue = TRUE) {
-  p <- enrichplot::gseaplot2(gse_obj, 
-                             geneSetID = gene_set_ids, 
-                             pvalue_table = show_pvalue)
-  return(p)
-}
-
-
-# Plot : GSEA Rank
-# Entrée : 
-#   - gse_obj : Objet de résultat (Uniquement GSEA) // Afficher uniquement si l'utilisateur choisit GSEA
-#   - gene_set_id : Index du pathway spécifique à afficher (un seul) // Lier à un input numérique ou un menu déroulant
-# Sortie : Objet ggplot
-generate_gsearank <- function(gse_obj, gene_set_id = 1) {
-  # Récupère le nom dynamique du pathway pour le titre
-  pathway_title <- gse_obj[gene_set_id, "Description"]
-  
-  p <- enrichplot::gsearank(gse_obj, geneSetID = gene_set_id, title = pathway_title)
-  return(p)
-}
-
-
-
-
 # ----- Custom MAnhattan plot ----- 
 
 # Plot : Manhattan Plot personnalisé

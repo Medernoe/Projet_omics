@@ -553,7 +553,7 @@ function(input, output, session) {
     
     # Sélection et réordonnancement des colonnes utiles
     cols_keep <- intersect(
-      c("ID", "Description", "GeneRatio", "BgRatio", "pvalue", "p.adjust", "qvalue", "Count", "geneID"),
+      c("ID", "Description", "GeneRatio", "BgRatio", "pvalue", "p.adjust", "qvalue", "Count"),
       colnames(df)
     )
     df <- df[, cols_keep, drop = FALSE]
@@ -712,9 +712,6 @@ function(input, output, session) {
            "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
            "Upsetplot" = generate_upsetplot(gse, label = label, top_n = top_n),
            "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
-           "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
-           "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
-           "GSEArank"  = generate_gsearank(gse, gene_set_id = 1),
            "Manhattan" = generate_manhattan_plot(go_results = go_gsea_results(), label = label, p_cutoff = 0.05, top_n_labels = min(top_n, 15))
     )
   })
@@ -723,7 +720,7 @@ function(input, output, session) {
     if (is.null(input$deg_file) || is.null(raw_data()) || input$run_go_gsea == 0) {
       return(plotlyOutput("go_gsea_empty", height = "600px"))
     }
-    static_plots <- c("Cnetplot", "Emapplot", "Upsetplot", "GSEAplot2", "GSEArank")
+    static_plots <- c("Cnetplot", "Emapplot", "Upsetplot")
     if (input$go_gsea_selected_plot %in% static_plots) {
       plotOutput("go_gsea_plot_static", height = "600px")
     } else {
@@ -770,7 +767,7 @@ function(input, output, session) {
     # Colonnes utiles pour GSEA (signature différente d'ORA : NES, ES, setSize...)
     cols_keep <- intersect(
       c("ID", "Description", "setSize", "enrichmentScore", "NES",
-        "pvalue", "p.adjust", "qvalue", "rank", "leading_edge", "core_enrichment"),
+        "pvalue", "p.adjust", "qvalue", "rank"),
       colnames(df)
     )
     df <- df[, cols_keep, drop = FALSE]
@@ -986,7 +983,7 @@ function(input, output, session) {
     df$ID <- pathway_id_to_link(df$ID, input$pathway_ora_displayed_db)
     
     cols_keep <- intersect(
-      c("ID", "Description", "GeneRatio", "BgRatio", "pvalue", "p.adjust", "qvalue", "Count", "geneID"),
+      c("ID", "Description", "GeneRatio", "BgRatio", "pvalue", "p.adjust", "qvalue", "Count"),
       colnames(df)
     )
     df <- df[, cols_keep, drop = FALSE]
@@ -1113,9 +1110,6 @@ function(input, output, session) {
            "Emapplot"  = generate_emapplot(gse, label = label, top_n = top_n),
            "Upsetplot" = generate_upsetplot(gse, label = label, top_n = top_n),
            "Heatplot"  = generate_heatplot(gse, label = label, top_n = top_n),
-           "Ridgeplot" = generate_ridgeplot(gse, label = label, top_n = top_n),
-           "GSEAplot2" = generate_gseaplot2(gse, gene_set_ids = 1:min(3, nrow(as.data.frame(gse)))),
-           "GSEArank"  = generate_gsearank(gse, gene_set_id = 1)
     )
   })
   
@@ -1123,7 +1117,7 @@ function(input, output, session) {
     if (is.null(input$deg_file) || is.null(raw_data()) || input$run_pathway_gsea == 0) {
       return(plotlyOutput("pathway_gsea_empty", height = "600px"))
     }
-    static_plots <- c("Cnetplot", "Emapplot", "Upsetplot", "GSEAplot2", "GSEArank")
+    static_plots <- c("Cnetplot", "Emapplot", "Upsetplot")
     if (input$pathway_gsea_selected_plot %in% static_plots) {
       plotOutput("pathway_gsea_plot_static", height = "600px")
     } else {
@@ -1180,7 +1174,7 @@ function(input, output, session) {
     
     cols_keep <- intersect(
       c("ID", "Description", "setSize", "enrichmentScore", "NES",
-        "pvalue", "p.adjust", "qvalue", "rank", "leading_edge", "core_enrichment"),
+        "pvalue", "p.adjust", "qvalue", "rank"),
       colnames(df)
     )
     df <- df[, cols_keep, drop = FALSE]
