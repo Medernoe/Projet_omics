@@ -1,0 +1,10 @@
+.git
+.gitignore
+.Rproj.user
+.Rhistory
+.RData
+.Rprofile
+renv/
+README.md
+exemple.csv
+renv.lock
